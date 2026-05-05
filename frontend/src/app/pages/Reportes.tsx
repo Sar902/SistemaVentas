@@ -531,11 +531,11 @@ export function Reportes() {
       const headerMeses = sheet.addRow(["MES", "VENTAS", ""]);
       headerMeses.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       const meses = [
         "Enero",
@@ -579,11 +579,11 @@ export function Reportes() {
       const header = sheet.addRow(["CÓDIGO", "DESCRIPCIÓN", "EXISTENCIA"]);
       header.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       productosProveedor.forEach((p) => {
         sheet.addRow([p.id, p.producto, p.unidades_disponibles + " UNIDADES"]);
@@ -607,11 +607,11 @@ export function Reportes() {
       ]);
       headerDev.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoDevoluciones.forEach((d) => {
         const d_fecha = new Date(d.fecha);
@@ -644,11 +644,11 @@ export function Reportes() {
       ]);
       headerPerd.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoPerdidas.forEach((d) => {
         sheet.addRow([
@@ -671,11 +671,11 @@ export function Reportes() {
       const headerVF = sheet.addRow(["ID VENTA", "FECHA", "ESTADO", "TOTAL"]);
       headerVF.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoVentasFiltradas.forEach((d) => {
         sheet.addRow([
@@ -701,11 +701,11 @@ export function Reportes() {
       ]);
       headerTP.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoTopProductos.forEach((d) => {
         sheet.addRow([
@@ -731,11 +731,11 @@ export function Reportes() {
       ]);
       headerGP.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoGananciaProducto.forEach((d) => {
         sheet.addRow([
@@ -761,11 +761,11 @@ export function Reportes() {
       ]);
       headerComp.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoComparacion.forEach((d) => {
         sheet.addRow([
@@ -791,11 +791,11 @@ export function Reportes() {
       ]);
       headerCF.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoComprasFiltradas.forEach((d) => {
         sheet.addRow([
@@ -821,11 +821,11 @@ export function Reportes() {
       ]);
       headerSM.eachCell(
         (c) =>
-          (c.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "FFDEE2E6" },
-          }),
+        (c.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDEE2E6" },
+        }),
       );
       resultadoSinMovimiento.forEach((d) => {
         sheet.addRow([
@@ -1938,6 +1938,20 @@ export function Reportes() {
           h1, h2, h3, h4, th, p, span, td {
             color: #0f172a !important;
           }
+
+          /* Evitar desborde de tablas con múltiples columnas */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+          }
+          th, td {
+            padding: 0.4rem !important;
+            font-size: 0.65rem !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+          }
+
           th {
             background-color: #f1f5f9 !important; /* bg-slate-100 */
             border-bottom: 2px solid #cbd5e1 !important; /* border-slate-300 */
