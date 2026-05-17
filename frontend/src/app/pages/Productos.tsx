@@ -70,6 +70,10 @@ export function Productos() {
   const [newCategoryProfit, setNewCategoryProfit] = useState("10");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchCategory, setSearchCategory] = useState("");
+  // NUEVO: Estados para proveedor y presentación
+  const [newProductProveedor, setNewProductProveedor] = useState("");
+  const [newProductPresentacion, setNewProductPresentacion] = useState("");
+  const [proveedores, setProveedores] = useState<any[]>([]);
 
   // Estados para alertas
   const [deleteAlert, setDeleteAlert] = useState<{
@@ -131,9 +135,20 @@ export function Productos() {
     }
   };
 
+  const fetchProveedores = async () => {
+    try {
+      const response = await api.get("/catalogo/proveedores/");
+      const data = response.data.results ?? response.data;
+      setProveedores(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
     fetchProducts();
+    fetchProveedores();
 
     const handleBack = () => {
       setSelectedCategory(null);
@@ -186,6 +201,8 @@ export function Productos() {
         const payload = {
           name: editingProduct.name,
           categoryId: parseInt(editingProduct.categoryId),
+          proveedorId: editingProduct.proveedorId ? parseInt(editingProduct.proveedorId) : null,
+          presentacion: editingProduct.presentacion,
         };
         const response = await api.patch(
           `/catalogo/productos/${editingProduct.id}/`,
@@ -205,6 +222,8 @@ export function Productos() {
       const payload = {
         name: newProductName,
         categoryId: parseInt(newProductCategory),
+        proveedorId: newProductProveedor ? parseInt(newProductProveedor) : null,
+        presentacion: newProductPresentacion,
       };
       await api.post("/catalogo/productos/", payload);
       fetchProducts();
@@ -212,6 +231,8 @@ export function Productos() {
       setIsAddProductOpen(false);
       setNewProductName("Refresco Cola");
       setNewProductCategory("2");
+      setNewProductProveedor("");
+      setNewProductPresentacion("");
     } catch (error) {
       console.error("Error adding product:", error);
     }
@@ -457,6 +478,7 @@ export function Productos() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre del Producto</TableHead>
+                  <TableHead>Presentación</TableHead>
                   <TableHead>Stock Disponible</TableHead>
                   <TableHead>Precio de Venta</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -468,6 +490,9 @@ export function Productos() {
                     <TableRow key={product.id} className="hover:bg-muted">
                       <TableCell className="font-medium text-foreground">
                         {product.name}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {product.presentacion || "-"}
                       </TableCell>
                       <TableCell>
                         <span
@@ -560,6 +585,35 @@ export function Productos() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">Proveedor (Opcional)</Label>
+              <Select
+                value={newProductProveedor}
+                onValueChange={setNewProductProveedor}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {proveedores.map((prov) => (
+                    <SelectItem key={prov.id} value={prov.id.toString()}>
+                      {prov.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">
+                Tamaño / Presentación (Opcional)
+              </Label>
+              <Input
+                value={newProductPresentacion}
+                onChange={(e) => setNewProductPresentacion(e.target.value)}
+                placeholder="Ej: 12 onzas, 3 litros, 500 ml"
+                className="mt-2"
+              />
             </div>
             <Button
               onClick={handleAddProduct}
@@ -658,6 +712,39 @@ export function Productos() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">Proveedor (Opcional)</Label>
+              <Select
+                value={editingProduct?.proveedorId?.toString() || ""}
+                onValueChange={(value) =>
+                  setEditingProduct({ ...editingProduct, proveedorId: value })
+                }
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {proveedores.map((prov) => (
+                    <SelectItem key={prov.id} value={prov.id.toString()}>
+                      {prov.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">
+                Tamaño / Presentación (Opcional)
+              </Label>
+              <Input
+                value={editingProduct?.presentacion || ""}
+                onChange={(e) =>
+                  setEditingProduct({ ...editingProduct, presentacion: e.target.value })
+                }
+                placeholder="Ej: 12 onzas, 3 litros, 500 ml"
+                className="mt-2"
+              />
             </div>
             <Button
               onClick={handleSaveEdit}

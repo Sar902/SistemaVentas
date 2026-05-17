@@ -76,12 +76,13 @@ class ProveedorSerializer(serializers.ModelSerializer):
     status = serializers.CharField(source='Estado', required=False)
     # Pedidos en los últimos 30 días: Indicador de frecuencia de compra
     pedidos_recientes = serializers.SerializerMethodField()
-    # Si el proveedor tiene alguna entrada de inventario (históricamente activo)
     activo = serializers.SerializerMethodField()
+    # Si el proveedor tiene productos asignados en el catálogo
+    tiene_productos = serializers.SerializerMethodField()
 
     class Meta:
         model = Proveedor
-        fields = ['id', 'name', 'contact', 'status', 'pedidos_recientes', 'activo']
+        fields = ['id', 'name', 'contact', 'status', 'pedidos_recientes', 'activo', 'tiene_productos']
 
     def get_pedidos_recientes(self, obj):
         """
@@ -104,19 +105,13 @@ class ProveedorSerializer(serializers.ModelSerializer):
         ).count()
 
     def get_activo(self, obj):
-        """
-        Determina si el proveedor ha tenido al menos una entrada de inventario.
-
-        Se usa .exists() en lugar de .count() > 0 porque es más eficiente:
-        .exists() detiene la búsqueda en la BD al encontrar el primer registro.
-
-        Args:
-            obj (Proveedor): Instancia del proveedor.
-
-        Returns:
-            bool: True si el proveedor tiene historial de compras.
-        """
         return EntradaInventario.objects.filter(IdProveedor=obj).exists()
+
+    def get_tiene_productos(self, obj):
+        """
+        Determina si el proveedor tiene al menos un producto asignado en el catálogo.
+        """
+        return Producto.objects.filter(IdProveedor=obj).exists()
 
 
 class ProductoSerializer(serializers.ModelSerializer):
@@ -141,13 +136,16 @@ class ProductoSerializer(serializers.ModelSerializer):
     # PrimaryKeyRelatedField: Acepta un ID entero de Categoria en el POST/PUT
     # y lo convierte automáticamente en la instancia del objeto de la BD.
     categoryId = serializers.PrimaryKeyRelatedField(source='IdCategoria', queryset=Categoria.objects.all())
+    # NUEVO: Campos para proveedor y presentación
+    proveedorId = serializers.PrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=False, allow_null=True)
+    presentacion = serializers.CharField(source='Presentacion', required=False, allow_null=True, allow_blank=True)
     status = serializers.CharField(source='Estado', required=False)
     stock = serializers.SerializerMethodField()
     salePrice = serializers.SerializerMethodField()
 
     class Meta:
         model = Producto
-        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice']
+        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion']
 
     def get_stock(self, obj):
         """

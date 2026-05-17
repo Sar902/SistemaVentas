@@ -52,7 +52,8 @@ export function Perdidas() {
 
   // Form states
   const [tipoPerdida, setTipoPerdida] = useState("Vencimiento");
-  const [selectedInventarioId, setSelectedInventarioId] = useState<string>("");
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>("");
+  const [cantidadAPerder, setCantidadAPerder] = useState<number>(1);
 
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedPerdida, setSelectedPerdida] = useState<any>(null);
@@ -89,50 +90,76 @@ export function Perdidas() {
     }
   };
 
-  const getProductNameByInventarioId = (invId: number) => {
-    const inv = inventarioDisponible.find((i) => i.id === invId);
-    if (!inv) return "Desconocido";
-    const det = detallesEntrada.find((d) => d.id === inv.detalleEntradaId);
-    if (!det) return "Desconocido";
-    const prod = productos.find((p) => p.id === det.productoId);
-    return prod ? prod.name : "Desconocido";
-  };
+  const getAvailableGroups = () => {
+    const groups: Record<string, any> = {};
+    inventarioDisponible.forEach((inv) => {
+      const det = detallesEntrada.find((d) => d.id === inv.detalleEntradaId);
+      if (!det) return;
+      const prod = productos.find((p) => p.id === det.productoId);
+      if (!prod) return;
 
-  const getProductPriceByInventarioId = (invId: number) => {
-    const inv = inventarioDisponible.find((i) => i.id === invId);
-    if (!inv) return 0;
-    const det = detallesEntrada.find((d) => d.id === inv.detalleEntradaId);
-    return det ? Number(det.precioCompraUnitario) : 0;
+      const prodId = prod.id;
+      const entradaId = det.entradaInventarioId;
+      const key = `${prodId}-${entradaId}`;
+
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          prodId,
+          entradaId,
+          nombre: prod.name,
+          precioCompra: Number(det.precioCompraUnitario),
+          items: []
+        };
+      }
+      groups[key].items.push(inv);
+    });
+    return Object.values(groups);
   };
 
   const handleSave = async () => {
-    if (!selectedInventarioId) {
-      toast.warning("Debes seleccionar un ítem del inventario.");
+    if (!selectedGroupKey) {
+      toast.warning("Debes seleccionar un producto.");
       return;
     }
+
+    const availableGroups = getAvailableGroups();
+    const group = availableGroups.find((g: any) => g.key === selectedGroupKey);
+
+    if (!group) {
+      toast.error("El grupo de productos seleccionado no es válido.");
+      return;
+    }
+
+    if (group.items.length < cantidadAPerder || cantidadAPerder < 1) {
+      toast.error("Cantidad inválida o superior al stock disponible.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const invIdNum = parseInt(selectedInventarioId);
-      const precioPerdido = getProductPriceByInventarioId(invIdNum);
+      const itemsToLose = group.items.slice(0, cantidadAPerder);
+      const totalPerdido = group.precioCompra * cantidadAPerder;
+
+      const detalles = itemsToLose.map((inv: any) => ({
+        inventarioId: inv.id,
+        precioCompraUnitario: group.precioCompra,
+      }));
 
       const payload = {
         usuarioId: userId,
         tipoPerdida: tipoPerdida,
         fecha: new Date().toISOString(),
-        total: precioPerdido,
-        detalles: [
-          {
-            inventarioId: invIdNum,
-            precioCompraUnitario: precioPerdido,
-          },
-        ],
+        total: totalPerdido,
+        detalles: detalles,
       };
 
       await api.post("/inventario/procesar-perdida/", payload);
 
       toast.success("Pérdida registrada exitosamente.");
       setIsAddOpen(false);
-      setSelectedInventarioId("");
+      setSelectedGroupKey("");
+      setCantidadAPerder(1);
       fetchData();
     } catch (e: any) {
       console.error(e);
@@ -272,12 +299,11 @@ export function Perdidas() {
                     <p className="text-foreground">{d.productoNombre}</p>
                   </div>
 
-                  {/* Cantidad */}
                   <div>
                     <Label className="font-semibold text-foreground">
                       Cantidad
                     </Label>
-                    <p className="text-foreground">1</p>
+                    <p className="text-foreground">{selectedPerdida.detalles.length || 1}</p>
                   </div>
 
                   {/* Precio */}
@@ -322,28 +348,44 @@ export function Perdidas() {
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Ítem de Inventario (Disponible)</Label>
+              <Label>Producto (Disponible)</Label>
               <Select
-                value={selectedInventarioId}
-                onValueChange={setSelectedInventarioId}
+                value={selectedGroupKey}
+                onValueChange={(val) => {
+                  setSelectedGroupKey(val);
+                  setCantidadAPerder(1);
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el ítem dañado..." />
+                  <SelectValue placeholder="Selecciona el producto dañado..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {inventarioDisponible.map((inv) => (
-                    <SelectItem key={inv.id} value={inv.id.toString()}>
-                      Item #{inv.id} - {getProductNameByInventarioId(inv.id)}
+                  {getAvailableGroups().map((group: any) => (
+                    <SelectItem key={group.key} value={group.key}>
+                      {group.nombre} - Compra #{group.entradaId} ({group.items.length} disp.)
                     </SelectItem>
                   ))}
-                  {inventarioDisponible.length === 0 && (
+                  {getAvailableGroups().length === 0 && (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No hay ítems disponibles.
+                      No hay productos disponibles.
                     </div>
                   )}
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedGroupKey && (
+              <div className="space-y-2">
+                <Label>Cantidad</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={getAvailableGroups().find((g: any) => g.key === selectedGroupKey)?.items.length || 1}
+                  value={cantidadAPerder}
+                  onChange={(e) => setCantidadAPerder(parseInt(e.target.value) || 1)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Motivo de la Pérdida</Label>
@@ -360,26 +402,26 @@ export function Perdidas() {
               </Select>
             </div>
 
-            {selectedInventarioId && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center text-sm">
-                <span className="text-red-800 font-medium">
-                  Costo de Merma:
-                </span>
-                <span className="text-red-700 font-bold">
-                  C$
-                  {getProductPriceByInventarioId(
-                    parseInt(selectedInventarioId),
-                  ).toFixed(2)}
-                </span>
-              </div>
-            )}
+            {selectedGroupKey && (() => {
+              const group = getAvailableGroups().find((g: any) => g.key === selectedGroupKey);
+              return group ? (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center text-sm">
+                  <span className="text-red-800 font-medium">
+                    Costo de Merma Total:
+                  </span>
+                  <span className="text-red-700 font-bold">
+                    C${(group.precioCompra * cantidadAPerder).toFixed(2)}
+                  </span>
+                </div>
+              ) : null;
+            })()}
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>
                 Cancelar
               </Button>
               <Button
-                disabled={isSubmitting || !selectedInventarioId}
+                disabled={isSubmitting || !selectedGroupKey}
                 onClick={handleSave}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >

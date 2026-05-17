@@ -168,17 +168,40 @@ export function Pedidos() {
     }
   };
 
-  const fetchProductos = async () => {
-    const { data } = await api.get("/catalogo/productos/");
-    setProductos(data.results ?? data);
-  };
-
   useEffect(() => {
     fetchEntradas();
     fetchInventario();
     fetchProveedores();
-    fetchProductos();
   }, []);
+
+  useEffect(() => {
+    const fetchProductosFiltrados = async () => {
+      if (selectedProveedor) {
+        try {
+          const { data } = await api.get("/catalogo/productos/");
+          const allProducts = data.results ?? data;
+          
+          // Filtramos en el frontend usando el nuevo campo proveedorId
+          const filtered = allProducts.filter((p: any) => p.proveedorId === parseInt(selectedProveedor));
+          
+          if (filtered.length > 0) {
+            setProductos(filtered);
+          } else {
+            // Si el maestro quiere restricción estricta, lo dejamos vacío si no hay asignados
+            setProductos([]);
+            toast.info("Este proveedor no tiene productos asignados.");
+          }
+        } catch (error) {
+          console.error("Error fetching products:", error);
+          setProductos([]);
+        }
+      } else {
+        setProductos([]);
+      }
+    };
+
+    fetchProductosFiltrados();
+  }, [selectedProveedor]);
 
   /* HANDLERS */
 
@@ -444,7 +467,7 @@ export function Pedidos() {
             className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white shadow-md dark:from-green-500 dark:to-green-600"
           >
             <Plus className="size-4 mr-2" />
-            Nuevo Pedido
+            Nueva Compra
           </Button>
         </div>
       </div>
@@ -724,7 +747,7 @@ export function Pedidos() {
       <Dialog open={modalPedido} onOpenChange={setModalPedido}>
         <DialogContent className="w-[90vw] max-w-5xl h-[85vh] overflow-y-auto flex flex-col">
           <DialogHeader>
-            <DialogTitle>Nuevo pedido</DialogTitle>
+            <DialogTitle>Nueva compra</DialogTitle>
           </DialogHeader>
 
           {/* CONTENEDOR PRINCIPAL (igual estilo que tu Card exitoso) */}
@@ -733,13 +756,14 @@ export function Pedidos() {
             <Select
               value={selectedProveedor}
               onValueChange={setSelectedProveedor}
+              disabled={productosPedido.length > 0}
             >
               <SelectTrigger className="h-11 w-full">
                 <SelectValue placeholder="Proveedor" />
               </SelectTrigger>
 
               <SelectContent>
-                {proveedores.map((p) => (
+                {proveedores.filter(p => p.tiene_productos || entradas.some(e => e.proveedorId === p.id)).map((p) => (
                   <SelectItem key={p.id} value={p.id.toString()}>
                     {p.name}
                   </SelectItem>
@@ -752,9 +776,9 @@ export function Pedidos() {
               <h3 className="font-bold">Agregar productos</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Select value={productoId} onValueChange={setProductoId}>
+                <Select value={productoId} onValueChange={setProductoId} disabled={!selectedProveedor}>
                   <SelectTrigger className="h-11 w-full">
-                    <SelectValue placeholder="Producto" />
+                    <SelectValue placeholder={selectedProveedor ? "Producto" : "Primero elige un proveedor..."} />
                   </SelectTrigger>
 
                   <SelectContent>

@@ -130,6 +130,16 @@ class Producto(models.Model):
         blank=False
     )
     Nombre = models.CharField(max_length=255, null=False, blank=False)
+    # NUEVO: Relación con Proveedor (Opcional)
+    IdProveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.RESTRICT,
+        db_column='IdProveedor',
+        null=True,
+        blank=True
+    )
+    # NUEVO: Tamaño o Presentación (Opcional)
+    Presentacion = models.CharField(max_length=100, null=True, blank=True)
     Estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='Activo', null=False, blank=False)
 
     class Meta:

@@ -90,7 +90,7 @@ const datosManual: Seccion[] = [
     descripcion: 'Registro de compras y abastecimiento de mercancía.',
     icono: <Iconos.Inventario />,
     detalles: [
-      'Selecciona "Nuevo pedido" en el módulo de pedidos.',
+      'Selecciona "Nueva compra" en el módulo de compras.',
       'Asigna la compra a un proveedor registrado.',
       'Ingresa las cantidades recibidas para que el stock se actualice automáticamente.'
     ]

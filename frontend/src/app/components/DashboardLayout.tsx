@@ -65,7 +65,7 @@ export function DashboardLayout() {
    */
   const adminItems = [
     { icon: Package, label: "Productos", path: "/productos" },
-    { icon: Truck, label: "Pedidos", path: "/pedidos" },
+    { icon: Truck, label: "Compras", path: "/pedidos" },
     { icon: TrendingDown, label: "Pérdidas", path: "/perdidas" },
     { icon: RefreshCcw, label: "Devoluciones", path: "/devoluciones" },
     { icon: BarChart3, label: "Reportes", path: "/reportes" },
