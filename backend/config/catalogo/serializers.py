@@ -136,8 +136,8 @@ class ProductoSerializer(serializers.ModelSerializer):
     # PrimaryKeyRelatedField: Acepta un ID entero de Categoria en el POST/PUT
     # y lo convierte automáticamente en la instancia del objeto de la BD.
     categoryId = serializers.PrimaryKeyRelatedField(source='IdCategoria', queryset=Categoria.objects.all())
-    # NUEVO: Campos para proveedor y presentación
-    proveedorId = serializers.PrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=False, allow_null=True)
+    # NUEVO: Campos para proveedor y presentación (Proveedor obligatorio)
+    proveedorId = serializers.PrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=True, allow_null=False)
     presentacion = serializers.CharField(source='Presentacion', required=False, allow_null=True, allow_blank=True)
     status = serializers.CharField(source='Estado', required=False)
     stock = serializers.SerializerMethodField()

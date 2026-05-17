@@ -15,6 +15,7 @@ import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { useState, useEffect, useRef } from "react";
 import api from "../api/axiosInstance";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -218,6 +219,10 @@ export function Productos() {
   };
 
   const handleAddProduct = async () => {
+    if (!newProductProveedor) {
+      toast.error("Debes seleccionar un proveedor para el producto.");
+      return;
+    }
     try {
       const payload = {
         name: newProductName,
@@ -496,13 +501,12 @@ export function Productos() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            product.stock === 0
+                          className={`px-3 py-1 rounded-full text-sm font-semibold ${product.stock === 0
                               ? "bg-red-100 text-red-700"
                               : product.stock < 10
                                 ? "bg-orange-100 text-orange-700"
                                 : "bg-green-100 text-green-700"
-                          }`}
+                            }`}
                         >
                           {product.stock}{" "}
                           {product.stock === 1 ? "unidad" : "unidades"}
@@ -587,7 +591,7 @@ export function Productos() {
               </Select>
             </div>
             <div>
-              <Label className="text-foreground font-semibold">Proveedor (Opcional)</Label>
+              <Label className="text-foreground font-semibold">Proveedor</Label>
               <Select
                 value={newProductProveedor}
                 onValueChange={setNewProductProveedor}
