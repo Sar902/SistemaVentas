@@ -9,6 +9,7 @@ import {
   Package,
   Eye,
   Pencil,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -97,7 +98,10 @@ export function Productos() {
 
   useEffect(() => {
     if (successMessage) {
-      successTimerRef.current = window.setTimeout(() => setSuccessMessage(false), 3000);
+      successTimerRef.current = window.setTimeout(
+        () => setSuccessMessage(false),
+        3000,
+      );
     }
     return () => {
       if (successTimerRef.current !== null) {
@@ -174,9 +178,7 @@ export function Productos() {
   const handleConfirmDelete = async () => {
     if (deleteAlert.productId) {
       try {
-        await api.delete(
-          `/catalogo/productos/${deleteAlert.productId}/`,
-        );
+        await api.delete(`/catalogo/productos/${deleteAlert.productId}/`);
         setProducts(products.filter((p) => p.id !== deleteAlert.productId));
         setDeleteAlert({
           isOpen: false,
@@ -202,7 +204,9 @@ export function Productos() {
         const payload = {
           name: editingProduct.name,
           categoryId: parseInt(editingProduct.categoryId),
-          proveedorId: editingProduct.proveedorId ? parseInt(editingProduct.proveedorId) : null,
+          proveedorId: editingProduct.proveedorId
+            ? parseInt(editingProduct.proveedorId)
+            : null,
           presentacion: editingProduct.presentacion,
         };
         const response = await api.patch(
@@ -250,10 +254,7 @@ export function Productos() {
           name: newCategoryName,
           profitPercentage: parseFloat(newCategoryProfit) || 3,
         };
-        await api.post(
-          "/catalogo/categorias/",
-          payload,
-        );
+        await api.post("/catalogo/categorias/", payload);
         fetchCategories();
         setIsAddCategoryOpen(false);
         setNewCategoryName("");
@@ -296,10 +297,7 @@ export function Productos() {
           name: editingCategory.name,
           profitPercentage: parseFloat(editingCategory.profitPercentage) || 3,
         };
-        await api.patch(
-          `/catalogo/categorias/${editingCategory.id}/`,
-          payload,
-        );
+        await api.patch(`/catalogo/categorias/${editingCategory.id}/`, payload);
         fetchCategories();
         setIsEditCategoryOpen(false);
         setEditingCategory(null);
@@ -342,7 +340,9 @@ export function Productos() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Productos</h1>
-          <p className="text-muted-foreground">Gestiona tu catálogo de productos</p>
+          <p className="text-muted-foreground">
+            Gestiona tu catálogo de productos
+          </p>
         </div>
         <div className="flex gap-3">
           <Button
@@ -409,7 +409,7 @@ export function Productos() {
                     <div className="size-12 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                       <Package className="size-6 text-white" />
                     </div>
-                    <span className="px-3 py-1 bg-gradient-to-r from-slate-100 to-gray-200 text-foreground rounded-full text-sm font-bold">
+                    <span className="px-3 py-1 bg-gradient-to-r from-slate-100 to-gray-200 text-slate-800 rounded-full text-sm font-bold">
                       {category.productCount}
                     </span>
                   </div>
@@ -432,14 +432,29 @@ export function Productos() {
       ) : (
         <Card className="p-6 border-0 shadow-lg">
           {/* Header de la categoría */}
+
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">
-                {selectedCategoryData?.name}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {filteredProducts.length} productos en esta categoría
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-2xl"
+                onClick={() => {
+                  setSelectedCategory(null);
+                }}
+              >
+                <ArrowLeft className="size-5" />
+              </Button>
+
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  {selectedCategoryData?.name}
+                </h2>
+
+                <p className="text-sm text-muted-foreground">
+                  {filteredProducts.length} productos en esta categoría
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -501,12 +516,13 @@ export function Productos() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${product.stock === 0
-                            ? "bg-red-100 text-red-700"
-                            : product.stock < 10
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-green-100 text-green-700"
-                            }`}
+                          className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                            product.stock === 0
+                              ? "bg-red-100 text-red-700"
+                              : product.stock < 10
+                                ? "bg-orange-100 text-orange-700"
+                                : "bg-green-100 text-green-700"
+                          }`}
                         >
                           {product.stock}{" "}
                           {product.stock === 1 ? "unidad" : "unidades"}
@@ -718,7 +734,9 @@ export function Productos() {
               </Select>
             </div>
             <div>
-              <Label className="text-foreground font-semibold">Proveedor (Opcional)</Label>
+              <Label className="text-foreground font-semibold">
+                Proveedor (Opcional)
+              </Label>
               <Select
                 value={editingProduct?.proveedorId?.toString() || ""}
                 onValueChange={(value) =>
@@ -744,7 +762,10 @@ export function Productos() {
               <Input
                 value={editingProduct?.presentacion || ""}
                 onChange={(e) =>
-                  setEditingProduct({ ...editingProduct, presentacion: e.target.value })
+                  setEditingProduct({
+                    ...editingProduct,
+                    presentacion: e.target.value,
+                  })
                 }
                 placeholder="Ej: 12 onzas, 3 litros, 500 ml"
                 className="mt-2"

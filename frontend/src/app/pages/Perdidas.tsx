@@ -110,7 +110,7 @@ export function Perdidas() {
           nombre: prod.name,
           presentacion: prod.presentacion || prod.Presentacion,
           precioCompra: Number(det.precioCompraUnitario),
-          items: []
+          items: [],
         };
       }
       groups[key].items.push(inv);
@@ -225,10 +225,7 @@ export function Perdidas() {
             <TableBody>
               {filtered.length > 0 ? (
                 filtered.map((p) => (
-                  <TableRow
-                    key={p.id}
-                    className="hover:bg-red-50 transition-colors"
-                  >
+                  <TableRow key={p.id} className="transition-colors">
                     <TableCell className="font-medium text-foreground">
                       #{p.id.toString().padStart(4, "0")}
                     </TableCell>
@@ -297,14 +294,21 @@ export function Perdidas() {
                     <Label className="font-semibold text-foreground">
                       Producto
                     </Label>
-                    <p className="text-foreground">{d.productoNombre} {d.productoPresentacion ? `(${d.productoPresentacion})` : ''}</p>
+                    <p className="text-foreground">
+                      {d.productoNombre}{" "}
+                      {d.productoPresentacion
+                        ? `(${d.productoPresentacion})`
+                        : ""}
+                    </p>
                   </div>
 
                   <div>
                     <Label className="font-semibold text-foreground">
                       Cantidad
                     </Label>
-                    <p className="text-foreground">{selectedPerdida.detalles.length || 1}</p>
+                    <p className="text-foreground">
+                      {selectedPerdida.detalles.length || 1}
+                    </p>
                   </div>
 
                   {/* Precio */}
@@ -363,7 +367,9 @@ export function Perdidas() {
                 <SelectContent>
                   {getAvailableGroups().map((group: any) => (
                     <SelectItem key={group.key} value={group.key}>
-                      {group.nombre} {group.presentacion ? `(${group.presentacion})` : ""} - Compra #{group.entradaId} ({group.items.length} disp.)
+                      {group.nombre}{" "}
+                      {group.presentacion ? `(${group.presentacion})` : ""} -
+                      Compra #{group.entradaId} ({group.items.length} disp.)
                     </SelectItem>
                   ))}
                   {getAvailableGroups().length === 0 && (
@@ -381,9 +387,15 @@ export function Perdidas() {
                 <Input
                   type="number"
                   min={1}
-                  max={getAvailableGroups().find((g: any) => g.key === selectedGroupKey)?.items.length || 1}
+                  max={
+                    getAvailableGroups().find(
+                      (g: any) => g.key === selectedGroupKey,
+                    )?.items.length || 1
+                  }
                   value={cantidadAPerder}
-                  onChange={(e) => setCantidadAPerder(parseInt(e.target.value) || 1)}
+                  onChange={(e) =>
+                    setCantidadAPerder(parseInt(e.target.value) || 1)
+                  }
                 />
               </div>
             )}
@@ -403,19 +415,22 @@ export function Perdidas() {
               </Select>
             </div>
 
-            {selectedGroupKey && (() => {
-              const group = getAvailableGroups().find((g: any) => g.key === selectedGroupKey);
-              return group ? (
-                <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center text-sm">
-                  <span className="text-red-800 font-medium">
-                    Costo de Merma Total:
-                  </span>
-                  <span className="text-red-700 font-bold">
-                    C${(group.precioCompra * cantidadAPerder).toFixed(2)}
-                  </span>
-                </div>
-              ) : null;
-            })()}
+            {selectedGroupKey &&
+              (() => {
+                const group = getAvailableGroups().find(
+                  (g: any) => g.key === selectedGroupKey,
+                );
+                return group ? (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center text-sm">
+                    <span className="text-red-800 font-medium">
+                      Costo de Merma Total:
+                    </span>
+                    <span className="text-red-700 font-bold">
+                      C${(group.precioCompra * cantidadAPerder).toFixed(2)}
+                    </span>
+                  </div>
+                ) : null;
+              })()}
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>

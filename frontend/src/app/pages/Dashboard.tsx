@@ -57,7 +57,7 @@ export function Dashboard() {
   const [statsData, setStatsData] = useState<any>(null);
   const { userRole } = useAuth();
   // isAdmin: constante derivada del contexto, usada para filtrar tarjetas y features
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === "admin";
 
   useEffect(() => {
     fetchDashboardStats();
@@ -119,7 +119,10 @@ export function Dashboard() {
       icon: DollarSign,
       label: "Ventas Semanales",
       // null-safety: si el backend retorna null para vendedor, mostramos guión
-      value: statsData?.weeklySales != null ? `C$ ${Number(statsData.weeklySales).toFixed(2)}` : '—',
+      value:
+        statsData?.weeklySales != null
+          ? `C$ ${Number(statsData.weeklySales).toFixed(2)}`
+          : "—",
       change: "Últimos 7 días",
       trend: "up",
       color: "green",
@@ -128,7 +131,10 @@ export function Dashboard() {
     {
       icon: TrendingDown,
       label: "Pérdidas de la semana",
-      value: statsData?.weeklyLosses != null ? `C$ ${Number(statsData.weeklyLosses).toFixed(2)}` : '—',
+      value:
+        statsData?.weeklyLosses != null
+          ? `C$ ${Number(statsData.weeklyLosses).toFixed(2)}`
+          : "—",
       change: "Últimos 7 días",
       trend: "down",
       color: "red",
@@ -146,7 +152,7 @@ export function Dashboard() {
   ];
 
   // Los vendedores no ven las cards con datos financieros sensibles
-  const visibleStats = stats.filter(stat => isAdmin || !stat.adminOnly);
+  const visibleStats = stats.filter((stat) => isAdmin || !stat.adminOnly);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -182,8 +188,11 @@ export function Dashboard() {
                   <Icon className="size-6 text-white" />
                 </div>
                 <div
-                  className={`flex items-center gap-1 text-sm font-semibold ${stat.trend === "up" ? "text-green-600 dark:text-green-400" : "text-red-400"
-                    }`}
+                  className={`flex items-center gap-1 text-sm font-semibold ${
+                    stat.trend === "up"
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-400"
+                  }`}
                 >
                   {stat.trend === "up" ? (
                     <ArrowUpRight className="size-4" />
@@ -229,8 +238,14 @@ export function Dashboard() {
                 dy={10}
                 tickFormatter={(value) => {
                   const dayMap: { [key: string]: string } = {
-                    Mon: "Lun", Tue: "Mar", Wed: "Mié", Thu: "Jue",
-                    Fri: "Vie", Sat: "Sáb", Sun: "Dom", Hoy: "Hoy"
+                    Mon: "Lun",
+                    Tue: "Mar",
+                    Wed: "Mié",
+                    Thu: "Jue",
+                    Fri: "Vie",
+                    Sat: "Sáb",
+                    Sun: "Dom",
+                    Hoy: "Hoy",
                   };
                   return dayMap[value] || value;
                 }}
@@ -245,19 +260,29 @@ export function Dashboard() {
               <Tooltip
                 labelFormatter={(value) => {
                   const dayMap: { [key: string]: string } = {
-                    Mon: "Lunes", Tue: "Martes", Wed: "Miércoles", Thu: "Jueves",
-                    Fri: "Viernes", Sat: "Sábado", Sun: "Domingo", Hoy: "Hoy"
+                    Mon: "Lunes",
+                    Tue: "Martes",
+                    Wed: "Miércoles",
+                    Thu: "Jueves",
+                    Fri: "Viernes",
+                    Sat: "Sábado",
+                    Sun: "Domingo",
+                    Hoy: "Hoy",
                   };
                   return dayMap[value] || value;
                 }}
                 contentStyle={{
                   borderRadius: "12px",
                   border: "none",
-                  boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+                  boxShadow:
+                    "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
                   padding: "12px",
                 }}
-                cursor={{ fill: "#f1f5f9", radius: 8 }}
-                formatter={(value: any) => [`C$ ${Number(value).toLocaleString()}`, "Ventas"]}
+                cursor={false}
+                formatter={(value: any) => [
+                  `C$ ${Number(value).toLocaleString()}`,
+                  "Ventas",
+                ]}
               />
               <Bar
                 dataKey="total"
@@ -267,7 +292,15 @@ export function Dashboard() {
               >
                 {chartData.map((entry: any, index: number) => {
                   // Paleta de colores vibrantes y profesionales
-                  const colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f43f5e"];
+                  const colors = [
+                    "#3b82f6",
+                    "#ef4444",
+                    "#10b981",
+                    "#f59e0b",
+                    "#8b5cf6",
+                    "#06b6d4",
+                    "#f43f5e",
+                  ];
                   return (
                     <Cell
                       key={`cell-${index}`}
@@ -316,7 +349,9 @@ export function Dashboard() {
                     <p className="font-semibold text-sm text-foreground">
                       {product.name}
                     </p>
-                    <p className="text-xs text-muted-foreground">{product.category}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {product.category}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-red-600 dark:text-red-400">
@@ -366,14 +401,18 @@ export function Dashboard() {
                       <p className="font-semibold text-sm text-foreground">
                         Ticket Venta
                       </p>
-                      <p className="text-xs text-muted-foreground">{sale.time}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sale.time}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm text-green-700 dark:text-green-400">
                       {`C$ ${Number(String(sale.total).replace(/[^0-9.-]+/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </p>
-                    <p className="text-xs text-muted-foreground">{sale.items} items</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sale.items} items
+                    </p>
                   </div>
                 </div>
               ))
