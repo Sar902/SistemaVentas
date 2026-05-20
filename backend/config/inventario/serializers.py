@@ -77,6 +77,10 @@ class DetalleEntradaInventarioSerializer(serializers.ModelSerializer):
     productoId = serializers.PrimaryKeyRelatedField(
         source='IdProducto', queryset=Producto.objects.all()
     )
+
+    tipoCompra = serializers.CharField(
+    source='TipoCompra', required=False, allow_blank=True, allow_null=True)
+    
     cantidad = serializers.IntegerField(source='Cantidad')
     precioCompraUnitario = serializers.DecimalField(
         source='PrecioCompraUnitario', max_digits=12, decimal_places=2
@@ -95,7 +99,7 @@ class DetalleEntradaInventarioSerializer(serializers.ModelSerializer):
         model = DetalleEntradaInventario
         fields = [
             'id', 'entradaInventarioId', 'productoId', 'productoNombre', 'productoPresentacion',
-            'cantidad', 'precioCompraUnitario', 'estadoItems'
+            'tipoCompra', 'cantidad', 'precioCompraUnitario', 'estadoItems'
         ]
 
 

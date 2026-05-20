@@ -11,7 +11,7 @@ CAMPOS CALCULADOS vs. CAMPOS ALMACENADOS:
     se calculan en cada petición en lugar de almacenarse en la BD porque:
     - Stock: Cambia constantemente con cada venta, pérdida o devolución.
       Almacenarlo requeriría sincronización compleja o triggers en BD.
-    - salePrice: Depende del PrecioCompra más reciente Y del PorcentajeGanancia
+    - salePrice: Depende del PrecioCompra Y del PorcentajeGanancia
       actual de la categoría. Si se almacenara y la categoría cambia su %, todos
       los precios quedarían desactualizados.
     - pedidos_recientes: Dato de monitoreo, no de negocio crítico.
@@ -25,6 +25,7 @@ from .models import Categoria, Proveedor, Producto
 from inventario.models import EntradaInventario, Inventario, DetalleEntradaInventario
 from datetime import timedelta
 from django.utils import timezone
+from django.db.models import Avg
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -168,25 +169,23 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     def get_salePrice(self, obj):
         """
-        Calcula el precio de venta sugerido basado en el último precio de compra
-        y el porcentaje de ganancia de la categoría del producto.
+        Calcula el precio de venta usando el promedio de compra
+        y el porcentaje de ganancia de la categoría.
 
-        Args:
-            obj (Producto): Instancia del producto.
-
-        Returns:
-            float: Precio de venta redondeado a 2 decimales, o 0.0 si no hay compras.
         """
-        # Obtener el detalle de compra más reciente para este producto.
-        # order_by('-IdDetalleEntrada') ordena descendentemente: el ID más alto
-        # es el registro más nuevo (ya que AutoField es secuencial).
-        latest_detalle = DetalleEntradaInventario.objects.filter(
+        promedio = DetalleEntradaInventario.objects.filter(
             IdProducto=obj
-        ).order_by('-IdDetalleEntrada').first()
+        ).aggregate(
+            promedio=Avg('PrecioCompraUnitario')
+        )['promedio']
 
-        base_price = float(latest_detalle.PrecioCompraUnitario) if latest_detalle else 0.0
+        # Si no hay compras, usar 0
+        base_price = float(promedio) if promedio else 0.0
+
+        # Porcentaje de ganancia de la categoría
         profit = float(obj.IdCategoria.PorcentajeGanancia)
 
-        # Fórmula: precio_base × (1 + margen_decimal)
-        # Ejemplo: C$10 de costo con 30% de ganancia → C$10 × 1.30 = C$13
+        # Precio final
         return round(base_price * (1 + (profit / 100)), 2)
+    
+    

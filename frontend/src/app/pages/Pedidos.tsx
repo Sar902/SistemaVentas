@@ -119,7 +119,6 @@ export function Pedidos() {
   const [totalPagado, setTotalPagado] = useState("");
 
   const [productosPedido, setProductosPedido] = useState<any[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Estados para pedidos
   const [viewingPedido, setViewingPedido] = useState<any>(null);
@@ -134,6 +133,9 @@ export function Pedidos() {
     puedeEliminar: false,
   });
 
+  const [tipoCompra, setTipoCompra] = useState("unidad");
+
+  const [contenidoPack, setContenidoPack] = useState("");
   const isEditMode = Boolean(editingPedido);
 
   const resetModal = () => {
@@ -224,14 +226,24 @@ export function Pedidos() {
     setSelectedProveedor(pedido.proveedorId?.toString());
 
     // convertir detalles a formato del formulario
-    const mapped = pedido.detalles.map((d: any) => ({
-      id: d.id,
-      productoId: d.productoId?.toString(),
-      nombre: d.productoNombre,
-      cantidad: d.cantidad,
-      precioUnitario: Number(d.precioCompraUnitario),
-      totalPagado: d.cantidad * Number(d.precioCompraUnitario),
-    }));
+    const mapped = pedido.detalles.map((d: any) => {
+      const match = d.tipoCompra?.match(/\((\d+)\)/);
+
+      const unidadesPorPack = match ? Number(match[1]) : 1;
+
+      const cantidadMostrada =
+        d.tipoCompra === "unidad" ? d.cantidad : d.cantidad / unidadesPorPack;
+
+      return {
+        id: d.id,
+        productoId: d.productoId?.toString(),
+        nombre: d.productoNombre,
+        tipoCompra: d.tipoCompra,
+        cantidad: cantidadMostrada,
+        precioUnitario: Number(d.precioCompraUnitario),
+        totalPagado: d.cantidad * Number(d.precioCompraUnitario),
+      };
+    });
 
     setProductosPedido(mapped);
 
@@ -340,24 +352,53 @@ export function Pedidos() {
     if (!productoId || !cantidad || !totalPagado) return;
 
     const producto = productos.find((p) => p.id.toString() === productoId);
+
     if (!producto) return;
+
+    // unidades por pack
+    const unidadesPorPack =
+      tipoCompra === "pack" ? Number(contenidoPack || 1) : 1;
+
+    // cantidad REAL inventario
+    const cantidadReal = Number(cantidad) * unidadesPorPack;
+
+    // precio unitario REAL
+    const precioUnitario = Number(totalPagado) / cantidadReal;
+
+    // texto visual
+    const tipoCompraTexto =
+      tipoCompra === "pack" ? `pack(${contenidoPack})` : "unidad";
 
     const nuevo = {
       id: Date.now(),
+
       productoId,
+
       nombre: producto.name,
+
       presentacion: producto.presentacion,
-      cantidad: Number(cantidad),
+
+      tipoCompra: tipoCompraTexto,
+
+      // cantidad REAL
+      cantidad: cantidadReal,
+
+      // cantidad escrita usuario
+      cantidadMostrada: Number(cantidad),
+
       totalPagado: Number(totalPagado),
-      precioUnitario: Number(totalPagado) / Number(cantidad),
+
+      precioUnitario,
     };
 
     setProductosPedido([...productosPedido, nuevo]);
 
-    // limpiar inputs
+    // limpiar
     setProductoId("");
     setCantidad("");
     setTotalPagado("");
+    setContenidoPack("");
+    setTipoCompra("unidad");
   };
 
   // ELIMINAR PRODUCTO (NUEVO)
@@ -413,6 +454,7 @@ export function Pedidos() {
           api.post("/inventario/detalles-entrada/", {
             entradaInventarioId: entradaId,
             productoId: Number(p.productoId),
+            tipoCompra: p.tipoCompra,
             cantidad: Number(p.cantidad),
             precioCompraUnitario: Number(p.precioUnitario.toFixed(2)),
           }),
@@ -564,11 +606,11 @@ export function Pedidos() {
 
             <div>
               <h1 className="text-3xl font-bold tracking-tight">
-                {isEditMode ? "Editar pedido" : "Añadir pedido"}
+                {isEditMode ? "Editar compra" : "Añadir compra"}
               </h1>
 
               <p className="text-muted-foreground mt-1">
-                Gestiona productos, cantidades y costos del pedido.
+                Gestiona productos, cantidades y costos de la compra.
               </p>
             </div>
           </div>
@@ -604,68 +646,105 @@ export function Pedidos() {
             <div className="border border-border rounded-lg p-4 space-y-4">
               <h3 className="font-bold">Agregar productos</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* PRODUCTO */}
-                <Select
-                  value={productoId}
-                  onValueChange={setProductoId}
-                  disabled={!selectedProveedor}
-                >
-                  <SelectTrigger className="h-11 w-full">
-                    <SelectValue
-                      placeholder={
-                        selectedProveedor
-                          ? "Producto"
-                          : "Primero elige un proveedor..."
-                      }
-                    />
-                  </SelectTrigger>
+              {/* CALCULOS */}
+              {(() => {
+                const unidadesReales =
+                  tipoCompra === "pack"
+                    ? Number(cantidad || 0) * Number(contenidoPack || 1)
+                    : Number(cantidad || 0);
 
-                  <SelectContent>
-                    {productos.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.name} {p.presentacion ? `(${p.presentacion})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                const precioUnitario =
+                  unidadesReales > 0
+                    ? Number(totalPagado || 0) / unidadesReales
+                    : 0;
 
-                {/* CANTIDAD */}
-                <Input
-                  type="number"
-                  placeholder="Cantidad"
-                  value={cantidad}
-                  onChange={(e) => setCantidad(e.target.value)}
-                  className="h-11"
-                />
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                      {/* PRODUCTO */}
+                      <Select
+                        value={productoId}
+                        onValueChange={setProductoId}
+                        disabled={!selectedProveedor}
+                      >
+                        <SelectTrigger className="h-11 w-full">
+                          <SelectValue
+                            placeholder={
+                              selectedProveedor
+                                ? "Producto"
+                                : "Primero elige un proveedor..."
+                            }
+                          />
+                        </SelectTrigger>
 
-                {/* TOTAL */}
-                <Input
-                  type="number"
-                  placeholder="Total pagado"
-                  value={totalPagado}
-                  onChange={(e) => setTotalPagado(e.target.value)}
-                  className="h-11"
-                />
+                        <SelectContent>
+                          {productos.map((p) => (
+                            <SelectItem key={p.id} value={p.id.toString()}>
+                              {p.name}{" "}
+                              {p.presentacion ? `(${p.presentacion})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
-                {/* UNITARIO */}
-                <Input
-                  disabled
-                  className="h-11 bg-muted"
-                  value={
-                    cantidad && totalPagado
-                      ? `C$${(Number(totalPagado) / Number(cantidad)).toFixed(
-                          2,
-                        )}`
-                      : "C$0.00"
-                  }
-                />
-              </div>
+                      {/* TIPO COMPRA */}
+                      <Select value={tipoCompra} onValueChange={setTipoCompra}>
+                        <SelectTrigger className="h-11 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
 
-              <Button onClick={agregarProducto}>
-                <Plus className="size-4 mr-2" />
-                Agregar al pedido
-              </Button>
+                        <SelectContent>
+                          <SelectItem value="unidad">Unidad</SelectItem>
+
+                          <SelectItem value="pack">Pack</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* CONTENIDO PACK */}
+                      <Input
+                        type="number"
+                        placeholder="Unidades x pack"
+                        value={contenidoPack}
+                        disabled={tipoCompra !== "pack"}
+                        onChange={(e) => setContenidoPack(e.target.value)}
+                        className="h-11"
+                      />
+
+                      {/* CANTIDAD */}
+                      <Input
+                        type="number"
+                        placeholder={
+                          tipoCompra === "pack" ? "Cantidad packs" : "Cantidad"
+                        }
+                        value={cantidad}
+                        onChange={(e) => setCantidad(e.target.value)}
+                        className="h-11"
+                      />
+
+                      {/* TOTAL */}
+                      <Input
+                        type="number"
+                        placeholder="Total pagado"
+                        value={totalPagado}
+                        onChange={(e) => setTotalPagado(e.target.value)}
+                        className="h-11"
+                      />
+
+                      {/* UNITARIO */}
+                      <Input
+                        disabled
+                        className="h-11 bg-muted"
+                        value={`C$${precioUnitario.toFixed(2)}`}
+                      />
+                    </div>
+
+                    <Button onClick={agregarProducto}>
+                      <Plus className="size-4 mr-2" />
+                      Agregar a la compra
+                    </Button>
+                  </>
+                );
+              })()}
             </div>
 
             {/* ========================= LISTA ========================= */}
@@ -684,7 +763,9 @@ export function Pedidos() {
                       </p>
 
                       <p className="text-sm text-muted-foreground">
-                        Cant: {p.cantidad}
+                        {p.tipoCompra === "unidad"
+                          ? `${p.cantidad} unidades`
+                          : `${p.cantidadMostrada} ${p.tipoCompra}`}
                       </p>
                     </div>
 
@@ -692,7 +773,7 @@ export function Pedidos() {
                       <p>C${p.totalPagado}</p>
 
                       <p className="text-xs text-muted-foreground">
-                        C${p.precioUnitario} unit
+                        C${p.precioUnitario.toFixed(2)} unit
                       </p>
                     </div>
 
@@ -719,7 +800,7 @@ export function Pedidos() {
                 <Button onClick={handleSubmit}>
                   <Check className="size-4 mr-2" />
 
-                  {isEditMode ? "Actualizar pedido" : "Guardar pedido"}
+                  {isEditMode ? "Actualizar compra" : "Guardar compra"}
                 </Button>
               </div>
             </div>
@@ -905,7 +986,11 @@ export function Pedidos() {
                           : ""}
                       </TableCell>
 
-                      <TableCell>{d.cantidad}</TableCell>
+                      <TableCell>
+                        {d.tipoCompra === "unidad"
+                          ? `${d.cantidad} unit`
+                          : `${d.cantidad / Number(d.tipoCompra.match(/\((\d+)\)/)?.[1] || 1)} ${d.tipoCompra}`}
+                      </TableCell>
 
                       <TableCell>
                         C$
