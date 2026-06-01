@@ -10,6 +10,7 @@ import {
   Eye,
   Pencil,
   ArrowLeft,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -72,6 +73,9 @@ export function Productos() {
   const [newCategoryProfit, setNewCategoryProfit] = useState("10");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchCategory, setSearchCategory] = useState("");
+  // Mensajes de error inline para los modales de categoría
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [editCategoryError, setEditCategoryError] = useState<string | null>(null);
   // NUEVO: Estados para proveedor y presentación
   const [newProductProveedor, setNewProductProveedor] = useState("");
   const [newProductPresentacion, setNewProductPresentacion] = useState("");
@@ -248,20 +252,26 @@ export function Productos() {
   };
 
   const handleAddCategory = async () => {
-    if (newCategoryName.trim()) {
-      try {
-        const payload = {
-          name: newCategoryName,
-          profitPercentage: parseFloat(newCategoryProfit) || 3,
-        };
-        await api.post("/catalogo/categorias/", payload);
-        fetchCategories();
-        setIsAddCategoryOpen(false);
-        setNewCategoryName("");
-        setNewCategoryProfit("3");
-      } catch (error) {
-        console.error("Error adding category:", error);
-      }
+    if (!newCategoryName.trim()) return;
+    setCategoryError(null);
+    try {
+      const payload = {
+        name: newCategoryName,
+        profitPercentage: parseFloat(newCategoryProfit) || 3,
+      };
+      await api.post("/catalogo/categorias/", payload);
+      fetchCategories();
+      setIsAddCategoryOpen(false);
+      setNewCategoryName("");
+      setNewCategoryProfit("3");
+      setCategoryError(null);
+    } catch (err: any) {
+      // El backend retorna { name: ["mensaje"] } en errores de campo (DRF field-level)
+      const msg =
+        err?.response?.data?.name?.[0] ||
+        err?.response?.data?.detail ||
+        "Error al crear la categoría. Intenta de nuevo.";
+      setCategoryError(msg);
     }
   };
 
@@ -291,19 +301,25 @@ export function Productos() {
   };
 
   const handleSaveEditCategory = async () => {
-    if (editingCategory) {
-      try {
-        const payload = {
-          name: editingCategory.name,
-          profitPercentage: parseFloat(editingCategory.profitPercentage) || 3,
-        };
-        await api.patch(`/catalogo/categorias/${editingCategory.id}/`, payload);
-        fetchCategories();
-        setIsEditCategoryOpen(false);
-        setEditingCategory(null);
-      } catch (error) {
-        console.error("Error editing category:", error);
-      }
+    if (!editingCategory) return;
+    setEditCategoryError(null);
+    try {
+      const payload = {
+        name: editingCategory.name,
+        profitPercentage: parseFloat(editingCategory.profitPercentage) || 3,
+      };
+      await api.patch(`/catalogo/categorias/${editingCategory.id}/`, payload);
+      fetchCategories();
+      setIsEditCategoryOpen(false);
+      setEditingCategory(null);
+      setEditCategoryError(null);
+    } catch (err: any) {
+      // El backend retorna { name: ["mensaje"] } en errores de campo (DRF field-level)
+      const msg =
+        err?.response?.data?.name?.[0] ||
+        err?.response?.data?.detail ||
+        "Error al editar la categoría. Intenta de nuevo.";
+      setEditCategoryError(msg);
     }
   };
 
@@ -646,7 +662,13 @@ export function Productos() {
       </Dialog>
 
       {/* Modal: Agregar Categoría */}
-      <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+      <Dialog
+        open={isAddCategoryOpen}
+        onOpenChange={(open) => {
+          setIsAddCategoryOpen(open);
+          if (!open) setCategoryError(null); // Limpiar error al cerrar
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-foreground">
@@ -660,9 +682,12 @@ export function Productos() {
               </Label>
               <Input
                 value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
+                onChange={(e) => {
+                  setNewCategoryName(e.target.value);
+                  if (categoryError) setCategoryError(null); // Limpiar al escribir
+                }}
                 placeholder="Ej: Bebidas"
-                className="mt-2"
+                className={`mt-2 ${categoryError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               />
             </div>
             <div>
@@ -681,6 +706,18 @@ export function Productos() {
                 <span className="text-foreground font-semibold text-lg">%</span>
               </div>
             </div>
+
+            {/* Error inline: se muestra solo cuando el backend rechaza la petición */}
+            {categoryError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{categoryError}</span>
+              </div>
+            )}
+
             <Button
               onClick={handleAddCategory}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-md dark:from-blue-500 dark:to-blue-700"
@@ -811,7 +848,13 @@ export function Productos() {
       </Dialog>
 
       {/* Modal: Editar Categoría */}
-      <Dialog open={isEditCategoryOpen} onOpenChange={setIsEditCategoryOpen}>
+      <Dialog
+        open={isEditCategoryOpen}
+        onOpenChange={(open) => {
+          setIsEditCategoryOpen(open);
+          if (!open) setEditCategoryError(null); // Limpiar error al cerrar
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-foreground">
@@ -825,14 +868,15 @@ export function Productos() {
               </Label>
               <Input
                 value={editingCategory?.name || ""}
-                onChange={(e) =>
+                onChange={(e) => {
                   setEditingCategory({
                     ...editingCategory,
                     name: e.target.value,
-                  })
-                }
+                  });
+                  if (editCategoryError) setEditCategoryError(null); // Limpiar al escribir
+                }}
                 placeholder="Nombre de la categoría"
-                className="mt-2"
+                className={`mt-2 ${editCategoryError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
               />
             </div>
             <div>
@@ -856,6 +900,18 @@ export function Productos() {
                 <span className="text-foreground font-semibold text-lg">%</span>
               </div>
             </div>
+
+            {/* Error inline: se muestra cuando el nombre ya existe en la BD */}
+            {editCategoryError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{editCategoryError}</span>
+              </div>
+            )}
+
             <Button
               onClick={handleSaveEditCategory}
               className="w-full bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800"
@@ -865,6 +921,7 @@ export function Productos() {
           </div>
         </DialogContent>
       </Dialog>
+
 
       {/* AlertDialog: Eliminar Producto */}
       <AlertDialog

@@ -111,6 +111,11 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
                       Se prefiere desactivar en lugar de borrar para preservar
                       el historial de ventas asociado al usuario.
 
+    SEGURIDAD — BLOQUEO POR INTENTOS FALLIDOS:
+        Después de 3 intentos de contraseña incorrectos consecutivos, la cuenta
+        queda bloqueada durante 30 segundos. El campo `intentos_fallidos` se
+        resetea a 0 en cada login exitoso para no penalizar errores aislados.
+
     Atributos:
         IdUsuario (AutoField): Clave primaria autoincremental.
         Nombre (CharField): Nombre completo, requerido para mostrar en la UI.
@@ -121,6 +126,10 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         Rol (CharField): Rol de negocio ('admin'/'vendedor').
         EmailPendiente (EmailField): Email nuevo pendiente de verificación (flujo de cambio de email).
         TokenVerificacion (UUIDField): Token UUID para el proceso de verificación de nuevo email.
+        intentos_fallidos (IntegerField): Contador de contraseñas incorrectas consecutivas.
+                                          Se resetea a 0 en cada login exitoso.
+        bloqueado_hasta (DateTimeField): Timestamp hasta el cual el login está bloqueado.
+                                          None significa que la cuenta NO está bloqueada.
     """
 
     ESTADO_CHOICES = (
@@ -152,6 +161,21 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     # 3. Sistema copia EmailPendiente → Email y limpia ambos campos.
     EmailPendiente = models.EmailField(null=True, blank=True)
     TokenVerificacion = models.UUIDField(null=True, blank=True)
+
+    # ── Campos de seguridad: bloqueo por intentos fallidos ────────────────────
+    # default=0: Los usuarios existentes en BD no tienen intentos acumulados.
+    intentos_fallidos = models.IntegerField(
+        default=0,
+        help_text='Contador de contraseñas incorrectas consecutivas. Se resetea en login exitoso.'
+    )
+    # null=True: None significa cuenta NO bloqueada. Solo se escribe cuando
+    # el contador llega a 3; nunca se almacena una fecha pasada deliberadamente.
+    bloqueado_hasta = models.DateTimeField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text='Timestamp UTC hasta el cual se bloquea el login. None = sin bloqueo activo.'
+    )
 
     # USERNAME_FIELD: Le dice a Django que 'Email' es el campo de login.
     # Usado por authenticate() y el formulario de login del admin.

@@ -43,7 +43,8 @@ class UsuarioViewSet(AuditoriaMixin, viewsets.ModelViewSet):
     Todos los métodos requieren Rol == 'admin'. Un vendedor que intente
     acceder recibirá un HTTP 403 Forbidden.
     """
-    queryset = Usuario.objects.all()
+    # ordering por IdUsuario garantiza paginación estable (sin UnorderedObjectListWarning)
+    queryset = Usuario.objects.all().order_by('IdUsuario')
     serializer_class = UsuarioSerializer
     permission_classes = [IsAdminRole]
     MODULO_AUDITORIA = 'USUARIOS'
