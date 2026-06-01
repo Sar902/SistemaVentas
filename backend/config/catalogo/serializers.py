@@ -37,7 +37,12 @@ class CategoriaSerializer(serializers.ModelSerializer):
     """
 
     id = serializers.IntegerField(source='IdCategoria', read_only=True)
-    name = serializers.CharField(source='Nombre')
+    # validators=[]: Desactiva el UniqueValidator que DRF inyecta automáticamente
+    # al detectar unique=True en Categoria.Nombre. Sin esto, DRF dispara su propio
+    # error en inglés ANTES de que llegue a nuestro validate_name(), haciendo que
+    # nuestro mensaje en español y la lógica de __iexact nunca se ejecuten.
+    # La unicidad la controlamos nosotros en validate_name() con __iexact.
+    name = serializers.CharField(source='Nombre', validators=[])
     profitPercentage = serializers.DecimalField(source='PorcentajeGanancia', max_digits=5, decimal_places=2)
     status = serializers.CharField(source='Estado', required=False)
     # SerializerMethodField: Campo de solo lectura calculado por get_productCount()
@@ -61,6 +66,49 @@ class CategoriaSerializer(serializers.ModelSerializer):
             int: Número de productos en esta categoría.
         """
         return obj.producto_set.count()
+
+    def validate_name(self, value):
+        """
+        Normaliza y verifica la unicidad del nombre de la categoría.
+
+        Pasos:
+          1. Limpia espacios en blanco al inicio y final del string.
+          2. Busca en BD una categoría con el mismo nombre, ignorando
+             diferencias de mayúsculas/minúsculas (__iexact).
+          3. En actualizaciones (PUT/PATCH), excluye la propia instancia
+             de la búsqueda para no generar un falso positivo al guardar
+             sin cambiar el nombre.
+
+        DRF ejecuta este método automáticamente antes de .is_valid() porque
+        el campo se llama 'name' (validate_<field_name>).
+
+        Args:
+            value (str): Valor del campo 'name' recibido desde el request.
+
+        Returns:
+            str: Nombre limpio y validado.
+
+        Raises:
+            serializers.ValidationError: Si ya existe otra categoría con ese nombre.
+        """
+        # Paso 1 — Normalizar espacios para evitar duplicados como "Lácteos " vs "Lácteos"
+        nombre_limpio = value.strip()
+
+        # Paso 2 — Construir el queryset base de búsqueda por nombre exacto (case-insensitive)
+        qs = Categoria.objects.filter(Nombre__iexact=nombre_limpio)
+
+        # Paso 3 — Excluir la instancia actual en operaciones de actualización.
+        # self.instance es None en POST (creación) y la instancia existente en PUT/PATCH.
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                f'Ya existe una categoría con el nombre "{nombre_limpio}". '
+                f'Los nombres de categoría deben ser únicos.'
+            )
+
+        return nombre_limpio
 
 
 class ProveedorSerializer(serializers.ModelSerializer):

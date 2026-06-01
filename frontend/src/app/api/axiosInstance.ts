@@ -87,6 +87,18 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // ── BYPASS para el endpoint de autenticación ──────────────────────────────
+    // Si el 401 viene de /token/, el backend está devolviendo un error de negocio
+    // (contraseña incorrecta, cuenta bloqueada, cuenta inactiva, etc.) con su
+    // mensaje en error.response.data.detail.
+    // NO debemos interceptarlo: dejar que el catch del Login.tsx lo maneje y
+    // muestre el mensaje al usuario. Si lo interceptamos aquí, se lanzaría el
+    // flujo de silent refresh y la página se recargaría antes de que el usuario
+    // vea el error, produciendo el "loop infinito de recarga" reportado.
+    if (originalRequest?.url?.includes("/token/")) {
+      return Promise.reject(error);
+    }
+
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&

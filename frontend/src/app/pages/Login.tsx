@@ -30,12 +30,17 @@ import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 import api from "../api/axiosInstance";
 import { useAuth } from "../contexts/AuthContext";
-import { KeyRound, Mail, Loader2, Store } from "lucide-react";
+import { KeyRound, Mail, Loader2, Store, AlertCircle } from "lucide-react";
+import type { AxiosError } from "axios";
 
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  // errorMsg: mensaje de error del backend (contraseña incorrecta, cuenta bloqueada, etc.)
+  // Se muestra inline en el formulario para que no desaparezca como un toast.
+  // Se limpia al inicio de cada nuevo intento de login.
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -56,7 +61,10 @@ export function Login() {
       return;
     }
 
+    // Limpiar error anterior antes de cada nuevo intento
+    setErrorMsg(null);
     setIsLoading(true);
+
     try {
       // Normalizar email: minusculas + sin espacios extremos
       const cleanEmail = email.toLowerCase().trim();
@@ -69,11 +77,25 @@ export function Login() {
       login(response.data.access, response.data.refresh);
       toast.success("¡Bienvenido al sistema!");
       navigate("/");
-    } catch (error: any) {
-        // Mostrar el mensaje de error del backend si existe, o uno genérico
-        toast.error(error.response?.data?.detail || "Credenciales incorrectas o usuario no encontrado.");
+    } catch (err) {
+      // Tipar el error como AxiosError para acceder a error.response de forma segura.
+      // El campo `detail` es el que Django REST Framework / simplejwt usa para
+      // los mensajes de error de autenticación (AuthenticationFailed).
+      const axiosErr = err as AxiosError<{ detail?: string }>;
+      const mensajeBackend = axiosErr.response?.data?.detail;
+
+      if (mensajeBackend) {
+        // Mostrar el mensaje exacto del backend en el formulario (inline, persistente).
+        // Ejemplos: "Contraseña incorrecta. Te queda(n) 2 intento(s) antes del bloqueo."
+        //           "Cuenta bloqueada temporalmente. Intenta de nuevo en 28 segundo(s)."
+        //           "Tu cuenta está desactivada. Contacta al administrador del sistema."
+        setErrorMsg(mensajeBackend);
+      } else {
+        // Fallback para errores de red (sin conexión, timeout, etc.)
+        setErrorMsg("No se pudo conectar con el servidor. Verifica tu conexión.");
+      }
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -120,6 +142,19 @@ export function Login() {
                 />
               </div>
             </div>
+
+            {/* Mensaje de error inline — se muestra cuando el backend retorna 401 */}
+            {/* Más efectivo que un toast porque es persistente y el usuario lo ve */}
+            {/* justo antes del botón de submit, en el contexto del formulario.   */}
+            {errorMsg && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
             <Button type="submit" className="w-full h-12 text-lg mt-6 bg-green-600 hover:bg-green-700" disabled={isLoading}>
               {isLoading ? (
