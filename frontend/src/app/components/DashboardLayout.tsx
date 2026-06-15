@@ -27,9 +27,24 @@
 import { useState } from "react";
 import { Outlet, NavLink, Navigate } from "react-router";
 import {
-  LayoutDashboard, Package, Warehouse, ShoppingCart, Truck,
-  TrendingDown, RefreshCcw, Settings, Menu, X, Store,
-  User, Briefcase, Users, LogOut, BookOpen, BarChart3, ShieldCheck,
+  LayoutDashboard,
+  Package,
+  Warehouse,
+  ShoppingCart,
+  Truck,
+  TrendingDown,
+  RefreshCcw,
+  Settings,
+  Menu,
+  X,
+  Store,
+  User,
+  Briefcase,
+  Users,
+  LogOut,
+  BookOpen,
+  BarChart3,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "../contexts/AuthContext";
@@ -93,7 +108,9 @@ export function DashboardLayout() {
   const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
     <>
       {/* Logo y nombre del sistema */}
-      <div className={`p-6 border-b border-border ${mobile ? "flex items-center justify-between" : ""}`}>
+      <div
+        className={`p-6 border-b border-border ${mobile ? "flex items-center justify-between" : ""}`}
+      >
         <div className="flex items-center gap-3">
           <div className="size-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-lg flex items-center justify-center shadow-lg">
             <Store className="size-6 text-white" />
@@ -160,7 +177,6 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors">
-
       {/* ── Sidebar Desktop (siempre visible en md+) ────────────────────── */}
       {/* `fixed`: Permanece en su posición aunque se haga scroll en el contenido. */}
       {/* `z-40`: Por encima del contenido pero debajo de modales (z-50+). */}
@@ -189,9 +205,8 @@ export function DashboardLayout() {
       {/* ── Área de Contenido Principal ─────────────────────────────────── */}
       {/* md:ml-64: En desktop, empuja el contenido a la derecha del sidebar. */}
       <div className="md:ml-64 min-h-screen">
-
         {/* Header sticky: Permanece visible al hacer scroll */}
-        <header className="bg-card border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
+        <header className="print:hidden bg-card border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
           <div className="flex items-center justify-between px-4 md:px-8 py-4">
             <div className="flex items-center gap-4">
               {/* Botón de menú hamburgesa — Solo visible en móvil */}
@@ -202,8 +217,12 @@ export function DashboardLayout() {
                 <Menu className="size-6" />
               </button>
               <div>
-                <h2 className="font-semibold text-lg text-foreground">Panel de Control</h2>
-                <p className="text-sm text-muted-foreground">Bienvenido de vuelta</p>
+                <h2 className="font-semibold text-lg text-foreground">
+                  Panel de Control
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Bienvenido de vuelta
+                </p>
               </div>
             </div>
 

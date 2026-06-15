@@ -116,7 +116,7 @@ export function Pedidos() {
   // FORM PRODUCTO (CORRECTO)
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("");
-  const [totalPagado, setTotalPagado] = useState("");
+  const [costoCompra, setCostoCompra] = useState("");
 
   const [productosPedido, setProductosPedido] = useState<any[]>([]);
 
@@ -144,7 +144,8 @@ export function Pedidos() {
     setProductosPedido([]);
     setProductoId("");
     setCantidad("");
-    setTotalPagado("");
+    setCostoCompra("");
+    setContenidoPack("");
     setSelectedProveedor("");
   };
 
@@ -347,9 +348,8 @@ export function Pedidos() {
     }
   };
 
-  // AGREGAR PRODUCTO
   const agregarProducto = () => {
-    if (!productoId || !cantidad || !totalPagado) return;
+    if (!productoId || !cantidad || !costoCompra) return;
 
     const producto = productos.find((p) => p.id.toString() === productoId);
 
@@ -359,13 +359,18 @@ export function Pedidos() {
     const unidadesPorPack =
       tipoCompra === "pack" ? Number(contenidoPack || 1) : 1;
 
-    // cantidad REAL inventario
+    // cantidad real para inventario
     const cantidadReal = Number(cantidad) * unidadesPorPack;
 
-    // precio unitario REAL
-    const precioUnitario = Number(totalPagado) / cantidadReal;
+    // precio unitario real
+    const precioUnitario =
+      tipoCompra === "pack"
+        ? Number(costoCompra) / unidadesPorPack
+        : Number(costoCompra);
 
-    // texto visual
+    // total calculado automáticamente
+    const totalPagado = Number(cantidad) * Number(costoCompra);
+
     const tipoCompraTexto =
       tipoCompra === "pack" ? `pack(${contenidoPack})` : "unidad";
 
@@ -380,13 +385,13 @@ export function Pedidos() {
 
       tipoCompra: tipoCompraTexto,
 
-      // cantidad REAL
+      // cantidad real inventario
       cantidad: cantidadReal,
 
-      // cantidad escrita usuario
+      // cantidad escrita por el usuario
       cantidadMostrada: Number(cantidad),
 
-      totalPagado: Number(totalPagado),
+      totalPagado,
 
       precioUnitario,
     };
@@ -396,7 +401,7 @@ export function Pedidos() {
     // limpiar
     setProductoId("");
     setCantidad("");
-    setTotalPagado("");
+    setCostoCompra("");
     setContenidoPack("");
     setTipoCompra("unidad");
   };
@@ -653,10 +658,15 @@ export function Pedidos() {
                     ? Number(cantidad || 0) * Number(contenidoPack || 1)
                     : Number(cantidad || 0);
 
+                const totalCalculado =
+                  Number(cantidad || 0) * Number(costoCompra || 0);
+
                 const precioUnitario =
-                  unidadesReales > 0
-                    ? Number(totalPagado || 0) / unidadesReales
-                    : 0;
+                  tipoCompra === "pack"
+                    ? Number(contenidoPack || 0) > 0
+                      ? Number(costoCompra || 0) / Number(contenidoPack)
+                      : 0
+                    : Number(costoCompra || 0);
 
                 return (
                   <>
@@ -724,10 +734,13 @@ export function Pedidos() {
                       {/* TOTAL */}
                       <Input
                         type="number"
-                        placeholder="Total pagado"
-                        value={totalPagado}
-                        onChange={(e) => setTotalPagado(e.target.value)}
-                        className="h-11"
+                        placeholder={
+                          tipoCompra === "pack"
+                            ? "Costo por pack"
+                            : "Costo por unidad"
+                        }
+                        value={costoCompra}
+                        onChange={(e) => setCostoCompra(e.target.value)}
                       />
 
                       {/* UNITARIO */}

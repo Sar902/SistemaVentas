@@ -56,10 +56,6 @@ export function Reportes() {
   const [productosLista, setProductosLista] = useState<any[]>([]);
   const [proveedoresLista, setProveedoresLista] = useState<any[]>([]);
 
-  // ── Rango de fechas GLOBAL compartido por la mayoría de reportes ────────────
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
-
   // ── Estados específicos de cada reporte (datos + spinner) ───────────────────
   const [anio, setAnio] = useState(new Date().getFullYear().toString());
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
@@ -81,7 +77,9 @@ export function Reportes() {
 
   // ── Reportes avanzados (sp_*) ────────────────────────────────────────────────
   const [estadoVentaFiltrada, setEstadoVentaFiltrada] = useState("");
-  const [resultadoVentasFiltradas, setResultadoVentasFiltradas] = useState<any[]>([]);
+  const [resultadoVentasFiltradas, setResultadoVentasFiltradas] = useState<
+    any[]
+  >([]);
   const [loadingVentasFiltradas, setLoadingVentasFiltradas] = useState(false);
 
   const [limiteTopProductos, setLimiteTopProductos] = useState("10");
@@ -89,8 +87,14 @@ export function Reportes() {
   const [loadingTopProductos, setLoadingTopProductos] = useState(false);
 
   const [productoGananciaId, setProductoGananciaId] = useState("");
-  const [resultadoGananciaProducto, setResultadoGananciaProducto] = useState<any[]>([]);
+  const [resultadoGananciaProducto, setResultadoGananciaProducto] = useState<
+    any[]
+  >([]);
   const [loadingGananciaProducto, setLoadingGananciaProducto] = useState(false);
+
+  // ── Rango de fechas GLOBAL compartido por la mayoría de reportes ────────────
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
 
   const [fechaInicioA, setFechaInicioA] = useState("");
   const [fechaFinA, setFechaFinA] = useState("");
@@ -101,15 +105,23 @@ export function Reportes() {
   const [loadingComparacion, setLoadingComparacion] = useState(false);
 
   const [proveedorComprasId, setProveedorComprasId] = useState("");
-  const [resultadoComprasFiltradas, setResultadoComprasFiltradas] = useState<any[]>([]);
+  const [resultadoComprasFiltradas, setResultadoComprasFiltradas] = useState<
+    any[]
+  >([]);
   const [loadingComprasFiltradas, setLoadingComprasFiltradas] = useState(false);
 
   const [diasSinMovimiento, setDiasSinMovimiento] = useState("30");
-  const [resultadoSinMovimiento, setResultadoSinMovimiento] = useState<any[]>([]);
+  const [resultadoSinMovimiento, setResultadoSinMovimiento] = useState<any[]>(
+    [],
+  );
   const [loadingSinMovimiento, setLoadingSinMovimiento] = useState(false);
 
   const [resultadoPerdidas, setResultadoPerdidas] = useState<any[]>([]);
   const [loadingPerdidas, setLoadingPerdidas] = useState(false);
+
+  const fechaFinCompleta = `${fechaFin}T23:59:59`;
+  const fechaFinBCompleta = `${fechaFinB}T23:59:59`;
+  const fechaFinACompleta = `${fechaFinA}T23:59:59`;
 
   /**
    * seleccionVista: Controla qué reporte(s) incluir en PDF/Excel y el Modo Enfoque.
@@ -156,7 +168,7 @@ export function Reportes() {
     setLoadingGerencial(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=${fechaFin}`,
+        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
       );
       setResultadoGerencial(data);
       toast.success("Reporte generado con éxito");
@@ -176,11 +188,20 @@ export function Reportes() {
         `/ventas/reporte-pivot/?anio=${anio}&productoId=${productoSeleccionado}`,
       );
       const tieneVentas = [
-        data.ene, data.feb, data.mar, data.abr,
-        data.may, data.jun, data.jul, data.ago,
-        data.sep, data.oct, data.nov, data.dic,
+        data.ene,
+        data.feb,
+        data.mar,
+        data.abr,
+        data.may,
+        data.jun,
+        data.jul,
+        data.ago,
+        data.sep,
+        data.oct,
+        data.nov,
+        data.dic,
       ].some((v) => Number(v) > 0);
-      
+
       if (!tieneVentas) {
         setDatosPivot(null);
         toast.error("Este producto no tiene ventas registradas");
@@ -206,7 +227,9 @@ export function Reportes() {
       );
       if (data.length === 0) {
         setProductosProveedor([]);
-        toast.error("Este proveedor no tiene productos registrados actualmente");
+        toast.error(
+          "Este proveedor no tiene productos registrados actualmente",
+        );
       } else {
         setProductosProveedor(data);
         toast.success("Lista de productos cargada");
@@ -225,7 +248,7 @@ export function Reportes() {
     setLoadingDevoluciones(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=${fechaFin}`,
+        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
       );
       if (data.length === 0) {
         setResultadoDevoluciones([]);
@@ -248,7 +271,7 @@ export function Reportes() {
     setLoadingPerdidas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=${fechaFin}`,
+        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
       );
       if (data.length === 0) {
         setResultadoPerdidas([]);
@@ -271,7 +294,7 @@ export function Reportes() {
     setLoadingVentasFiltradas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=${fechaFin}&estado=${estadoVentaFiltrada}`,
+        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&estado=${estadoVentaFiltrada}`,
       );
       setResultadoVentasFiltradas(data);
       if (data.length > 0) {
@@ -292,7 +315,7 @@ export function Reportes() {
     setLoadingTopProductos(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=${fechaFin}&limite=${limiteTopProductos}`,
+        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&limite=${limiteTopProductos}`,
       );
       setResultadoTopProductos(data);
       if (data.length > 0) {
@@ -313,7 +336,7 @@ export function Reportes() {
     setLoadingGananciaProducto(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${fechaFin}&productoId=${productoGananciaId}`,
+        `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&productoId=${productoGananciaId}`,
       );
       setResultadoGananciaProducto(data);
       if (data.length > 0) {
@@ -335,7 +358,7 @@ export function Reportes() {
     setLoadingComparacion(true);
     try {
       const res = await api.get(
-        `/ventas/reporte-comparacion-ventas/?inicioA=${fechaInicioA}&finA=${fechaFinA}&inicioB=${fechaInicioB}&finB=${fechaFinB}`,
+        `/ventas/reporte-comparacion-ventas/?inicioA=${fechaInicioA}&finA=${fechaFinACompleta}&inicioB=${fechaInicioB}&finB=${fechaFinBCompleta}`,
       );
 
       if (!res.data || res.data.length === 0) {
@@ -377,7 +400,7 @@ export function Reportes() {
     setLoadingComprasFiltradas(true);
     try {
       const { data } = await api.get(
-        `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${fechaFin}&proveedorId=${proveedorComprasId}`,
+        `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&proveedorId=${proveedorComprasId}`,
       );
       setResultadoComprasFiltradas(data);
       if (data.length > 0) {
@@ -428,15 +451,34 @@ export function Reportes() {
     const title = sheet.getCell("A1");
     title.value = "MISCELÁNEA BENDICIÓN DE DIOS - REPORTE";
     title.font = { name: "Arial Black", size: 14, color: { argb: "FFFFFFFF" } };
-    title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+    title.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1E293B" },
+    };
     title.alignment = { horizontal: "center" };
 
-    if ((seleccionVista === "1" || seleccionVista === "todos") && resultadoGerencial) {
+    if (
+      (seleccionVista === "1" || seleccionVista === "todos") &&
+      resultadoGerencial
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- REPORTE DE VENTAS ---"]).font = { bold: true };
-      sheet.addRow(["Monto Total Vendido", "", `C$ ${Number(resultadoGerencial.total_ventas).toLocaleString()}`]);
-      sheet.addRow(["Promedio de Ventas", "", `C$ ${Number(resultadoGerencial.promedio_venta).toLocaleString()}`]);
-      sheet.addRow(["Producto Estrella", "", resultadoGerencial.producto_mas_vendido]);
+      sheet.addRow([
+        "Monto Total Vendido",
+        "",
+        `C$ ${Number(resultadoGerencial.total_ventas).toLocaleString()}`,
+      ]);
+      sheet.addRow([
+        "Promedio de Ventas",
+        "",
+        `C$ ${Number(resultadoGerencial.promedio_venta).toLocaleString()}`,
+      ]);
+      sheet.addRow([
+        "Producto Estrella",
+        "",
+        resultadoGerencial.producto_mas_vendido,
+      ]);
     }
 
     if ((seleccionVista === "2" || seleccionVista === "todos") && datosPivot) {
@@ -444,106 +486,317 @@ export function Reportes() {
       sheet.addRow(["--- VENTAS MENSUALES ---"]).font = { bold: true };
       sheet.addRow(["Producto:", datosPivot.producto, ""]);
       const headerMeses = sheet.addRow(["MES", "VENTAS", ""]);
-      headerMeses.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
-      const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-      const valores = [datosPivot.ene, datosPivot.feb, datosPivot.mar, datosPivot.abr, datosPivot.may, datosPivot.jun, datosPivot.jul, datosPivot.ago, datosPivot.sep, datosPivot.oct, datosPivot.nov, datosPivot.dic];
+      headerMeses.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
+      const meses = [
+        "Enero",
+        "Febrero",
+        "Marzo",
+        "Abril",
+        "Mayo",
+        "Junio",
+        "Julio",
+        "Agosto",
+        "Septiembre",
+        "Octubre",
+        "Noviembre",
+        "Diciembre",
+      ];
+      const valores = [
+        datosPivot.ene,
+        datosPivot.feb,
+        datosPivot.mar,
+        datosPivot.abr,
+        datosPivot.may,
+        datosPivot.jun,
+        datosPivot.jul,
+        datosPivot.ago,
+        datosPivot.sep,
+        datosPivot.oct,
+        datosPivot.nov,
+        datosPivot.dic,
+      ];
       meses.forEach((m, i) => {
         sheet.addRow([m, `C$ ${Number(valores[i] || 0).toLocaleString()}`, ""]);
       });
     }
 
-    if ((seleccionVista === "3" || seleccionVista === "todos") && productosProveedor.length > 0) {
+    if (
+      (seleccionVista === "3" || seleccionVista === "todos") &&
+      productosProveedor.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- PRODUCTOS POR PROVEEDOR ---"]).font = { bold: true };
       const header = sheet.addRow(["CÓDIGO", "DESCRIPCIÓN", "EXISTENCIA"]);
-      header.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      header.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       productosProveedor.forEach((p) => {
         sheet.addRow([p.id, p.producto, p.unidades_disponibles + " UNIDADES"]);
       });
     }
 
-    if ((seleccionVista === "4" || seleccionVista === "todos") && resultadoDevoluciones.length > 0) {
+    if (
+      (seleccionVista === "4" || seleccionVista === "todos") &&
+      resultadoDevoluciones.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- REPORTE DE DEVOLUCIONES ---"]).font = { bold: true };
-      const headerDev = sheet.addRow(["ID SOLICITUD", "PRODUCTO", "CANTIDAD", "MOTIVO", "USUARIO", "FECHA", "ESTADO"]);
-      headerDev.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerDev = sheet.addRow([
+        "ID SOLICITUD",
+        "PRODUCTO",
+        "CANTIDAD",
+        "MOTIVO",
+        "USUARIO",
+        "FECHA",
+        "ESTADO",
+      ]);
+      headerDev.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoDevoluciones.forEach((d) => {
-        sheet.addRow([d.id_solicitud, d.producto, d.cantidad, d.motivo || "N/A", d.usuario || "N/A", new Date(d.fecha).toLocaleDateString("es-NI", { timeZone: "UTC" }), d.estado]);
+        sheet.addRow([
+          d.id_solicitud,
+          d.producto,
+          d.cantidad,
+          d.motivo || "N/A",
+          d.usuario || "N/A",
+          new Date(d.fecha).toLocaleDateString("es-NI", { timeZone: "UTC" }),
+          d.estado,
+        ]);
       });
     }
 
-    if ((seleccionVista === "5" || seleccionVista === "todos") && resultadoPerdidas.length > 0) {
+    if (
+      (seleccionVista === "5" || seleccionVista === "todos") &&
+      resultadoPerdidas.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- REPORTE DE PÉRDIDAS ---"]).font = { bold: true };
-      const headerPerd = sheet.addRow(["ID", "PRODUCTO", "CANTIDAD", "MOTIVO", "FECHA", "TOTAL"]);
-      headerPerd.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerPerd = sheet.addRow([
+        "ID",
+        "PRODUCTO",
+        "CANTIDAD",
+        "MOTIVO",
+        "FECHA",
+        "TOTAL",
+      ]);
+      headerPerd.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoPerdidas.forEach((d) => {
-        sheet.addRow([d.id_perdida, d.producto, d.cantidad, d.motivo, new Date(d.fecha).toLocaleDateString("es-NI", { timeZone: "UTC" }), `C$ ${Number(d.total).toLocaleString()}`]);
+        sheet.addRow([
+          d.id_perdida,
+          d.producto,
+          d.cantidad,
+          d.motivo,
+          new Date(d.fecha).toLocaleDateString("es-NI", { timeZone: "UTC" }),
+          `C$ ${Number(d.total).toLocaleString()}`,
+        ]);
       });
     }
 
-    if ((seleccionVista === "6" || seleccionVista === "todos") && resultadoVentasFiltradas.length > 0) {
+    if (
+      (seleccionVista === "6" || seleccionVista === "todos") &&
+      resultadoVentasFiltradas.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- VENTAS FILTRADAS ---"]).font = { bold: true };
       const headerVF = sheet.addRow(["ID VENTA", "FECHA", "ESTADO", "TOTAL"]);
-      headerVF.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      headerVF.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoVentasFiltradas.forEach((d) => {
-        sheet.addRow([d.id_venta, new Date(d.fecha).toLocaleDateString("es-NI"), d.estado, `C$ ${Number(d.total).toLocaleString()}`]);
+        sheet.addRow([
+          d.id_venta,
+          new Date(d.fecha).toLocaleDateString("es-NI"),
+          d.estado,
+          `C$ ${Number(d.total).toLocaleString()}`,
+        ]);
       });
     }
 
-    if ((seleccionVista === "7" || seleccionVista === "todos") && resultadoTopProductos.length > 0) {
+    if (
+      (seleccionVista === "7" || seleccionVista === "todos") &&
+      resultadoTopProductos.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- TOP PRODUCTOS ---"]).font = { bold: true };
-      const headerTP = sheet.addRow(["PRODUCTO", "CATEGORÍA", "VENDIDOS", "INGRESO BRUTO"]);
-      headerTP.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerTP = sheet.addRow([
+        "PRODUCTO",
+        "CATEGORÍA",
+        "VENDIDOS",
+        "INGRESO BRUTO",
+      ]);
+      headerTP.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoTopProductos.forEach((d) => {
-        sheet.addRow([d.nombre_producto, d.categoria, d.cantidad_vendida, `C$ ${Number(d.ingreso_bruto).toLocaleString()}`]);
+        sheet.addRow([
+          d.nombre_producto,
+          d.categoria,
+          d.cantidad_vendida,
+          `C$ ${Number(d.ingreso_bruto).toLocaleString()}`,
+        ]);
       });
     }
 
-    if ((seleccionVista === "8" || seleccionVista === "todos") && resultadoGananciaProducto.length > 0) {
+    if (
+      (seleccionVista === "8" || seleccionVista === "todos") &&
+      resultadoGananciaProducto.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- GANANCIA POR PRODUCTO ---"]).font = { bold: true };
-      const headerGP = sheet.addRow(["PRODUCTO", "TOTAL VENTAS", "COSTO TOTAL", "GANANCIA BRUTA"]);
-      headerGP.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerGP = sheet.addRow([
+        "PRODUCTO",
+        "TOTAL VENTAS",
+        "COSTO TOTAL",
+        "GANANCIA BRUTA",
+      ]);
+      headerGP.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoGananciaProducto.forEach((d) => {
-        sheet.addRow([d.nombre_producto, `C$ ${Number(d.total_ventas).toLocaleString()}`, `C$ ${Number(d.costo_total).toLocaleString()}`, `C$ ${Number(d.ganancia_bruta).toLocaleString()}`]);
+        sheet.addRow([
+          d.nombre_producto,
+          `C$ ${Number(d.total_ventas).toLocaleString()}`,
+          `C$ ${Number(d.costo_total).toLocaleString()}`,
+          `C$ ${Number(d.ganancia_bruta).toLocaleString()}`,
+        ]);
       });
     }
 
-    if ((seleccionVista === "9" || seleccionVista === "todos") && resultadoComparacion.length > 0) {
+    if (
+      (seleccionVista === "9" || seleccionVista === "todos") &&
+      resultadoComparacion.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- COMPARACIÓN DE PERIODOS ---"]).font = { bold: true };
-      const headerComp = sheet.addRow(["MÉTRICA", "PERIODO A", "PERIODO B", "DIFERENCIA"]);
-      headerComp.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerComp = sheet.addRow([
+        "MÉTRICA",
+        "PERIODO A",
+        "PERIODO B",
+        "DIFERENCIA",
+      ]);
+      headerComp.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoComparacion.forEach((d) => {
-        sheet.addRow([d.metrica, `C$ ${Number(d.valor_a || 0).toLocaleString()}`, `C$ ${Number(d.valor_b || 0).toLocaleString()}`, d.diferencia]);
+        sheet.addRow([
+          d.metrica,
+          `C$ ${Number(d.valor_a || 0).toLocaleString()}`,
+          `C$ ${Number(d.valor_b || 0).toLocaleString()}`,
+          d.diferencia,
+        ]);
       });
     }
 
-    if ((seleccionVista === "10" || seleccionVista === "todos") && resultadoComprasFiltradas.length > 0) {
+    if (
+      (seleccionVista === "10" || seleccionVista === "todos") &&
+      resultadoComprasFiltradas.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- COMPRAS FILTRADAS ---"]).font = { bold: true };
-      const headerCF = sheet.addRow(["ID COMPRA", "FECHA", "PROVEEDOR", "TOTAL COMPRA"]);
-      headerCF.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerCF = sheet.addRow([
+        "ID COMPRA",
+        "FECHA",
+        "PROVEEDOR",
+        "TOTAL COMPRA",
+      ]);
+      headerCF.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoComprasFiltradas.forEach((d) => {
-        sheet.addRow([d.id_entrada, new Date(d.fecha_ingreso).toLocaleDateString("es-NI"), d.nombre_proveedor, `C$ ${Number(d.total_compra).toLocaleString()}`]);
+        sheet.addRow([
+          d.id_entrada,
+          new Date(d.fecha_ingreso).toLocaleDateString("es-NI"),
+          d.nombre_proveedor,
+          `C$ ${Number(d.total_compra).toLocaleString()}`,
+        ]);
       });
     }
 
-    if ((seleccionVista === "11" || seleccionVista === "todos") && resultadoSinMovimiento.length > 0) {
+    if (
+      (seleccionVista === "11" || seleccionVista === "todos") &&
+      resultadoSinMovimiento.length > 0
+    ) {
       sheet.addRow([]);
       sheet.addRow(["--- PRODUCTOS SIN MOVIMIENTO ---"]).font = { bold: true };
-      const headerSM = sheet.addRow(["PRODUCTO", "CATEGORÍA", "STOCK ACTUAL", "DÍAS SIN VENDER"]);
-      headerSM.eachCell((c) => (c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDEE2E6" } }));
+      const headerSM = sheet.addRow([
+        "PRODUCTO",
+        "CATEGORÍA",
+        "STOCK ACTUAL",
+        "DÍAS SIN VENDER",
+      ]);
+      headerSM.eachCell(
+        (c) =>
+          (c.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFDEE2E6" },
+          }),
+      );
       resultadoSinMovimiento.forEach((d) => {
-        sheet.addRow([d.nombre_producto, d.categoria, `${d.stock_actual} unidades`, `${d.dias_sin_venta} días`]);
+        sheet.addRow([
+          d.nombre_producto,
+          d.categoria,
+          `${d.stock_actual} unidades`,
+          `${d.dias_sin_venta} días`,
+        ]);
       });
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Reporte_Miscelanea_BendicionDeDios_${new Date().getTime()}.xlsx`);
+    saveAs(
+      new Blob([buffer]),
+      `Reporte_Miscelanea_BendicionDeDios_${new Date().getTime()}.xlsx`,
+    );
   };
 
   const puedeImprimir = () => {
@@ -648,12 +901,18 @@ export function Reportes() {
             <Undo2 className="size-5 mr-2" />
             Volver a los reportes
           </Button>
-          
+
           <div className="flex gap-3">
-            <Button onClick={handleImprimirPDF} className="bg-slate-700 hover:bg-slate-600 font-bold text-xs shadow-md">
+            <Button
+              onClick={handleImprimirPDF}
+              className="bg-slate-700 hover:bg-slate-600 font-bold text-xs shadow-md"
+            >
               <Printer size={16} className="mr-2" /> Imprimir PDF
             </Button>
-            <Button onClick={exportarExcelEstetico} className="bg-green-600 hover:bg-green-700 font-bold text-xs shadow-md">
+            <Button
+              onClick={exportarExcelEstetico}
+              className="bg-green-600 hover:bg-green-700 font-bold text-xs shadow-md"
+            >
               <FileSpreadsheet size={16} className="mr-2" /> Exportar Excel
             </Button>
           </div>
@@ -665,7 +924,10 @@ export function Reportes() {
         <Card className="p-4 bg-card border border-border shadow-sm">
           <div className="flex flex-col md:flex-row items-center gap-4">
             <div className="flex items-center gap-2 text-foreground font-black text-sm uppercase tracking-wider">
-              <CalendarDays size={20} className="text-blue-600 dark:text-blue-400" />
+              <CalendarDays
+                size={20}
+                className="text-blue-600 dark:text-blue-400"
+              />
               Rango de Fechas Global
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -717,7 +979,11 @@ export function Reportes() {
               onClick={ejecutarReporteGerencial}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingGerencial ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingGerencial ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -767,7 +1033,11 @@ export function Reportes() {
               onClick={ejecutarReporteProveedor}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingProveedor ? <Loader2 className="animate-spin" /> : "Listar"}
+              {loadingProveedor ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Listar"
+              )}
             </Button>
           </Card>
 
@@ -782,7 +1052,11 @@ export function Reportes() {
               onClick={ejecutarReporteDevoluciones}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingDevoluciones ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingDevoluciones ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -797,7 +1071,11 @@ export function Reportes() {
               onClick={ejecutarReportePerdidas}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingPerdidas ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingPerdidas ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -819,7 +1097,11 @@ export function Reportes() {
               onClick={ejecutarVentasFiltradas}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingVentasFiltradas ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingVentasFiltradas ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -838,7 +1120,11 @@ export function Reportes() {
               onClick={ejecutarTopProductos}
               className="w-full bg-blue-700 text-white font-bold uppercase tracking-widest"
             >
-              {loadingTopProductos ? <Loader2 className="animate-spin" /> : "Analizar"}
+              {loadingTopProductos ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Analizar"
+              )}
             </Button>
           </Card>
 
@@ -863,7 +1149,11 @@ export function Reportes() {
               onClick={ejecutarGananciaProducto}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingGananciaProducto ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingGananciaProducto ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -888,7 +1178,11 @@ export function Reportes() {
               onClick={ejecutarComprasFiltradas}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingComprasFiltradas ? <Loader2 className="animate-spin" /> : "Generar"}
+              {loadingComprasFiltradas ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Generar"
+              )}
             </Button>
           </Card>
 
@@ -907,7 +1201,11 @@ export function Reportes() {
               onClick={ejecutarSinMovimiento}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingSinMovimiento ? <Loader2 className="animate-spin" /> : "Analizar"}
+              {loadingSinMovimiento ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Analizar"
+              )}
             </Button>
           </Card>
 
@@ -950,7 +1248,11 @@ export function Reportes() {
               onClick={ejecutarComparacion}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold uppercase tracking-widest"
             >
-              {loadingComparacion ? <Loader2 className="animate-spin" /> : "Comparar"}
+              {loadingComparacion ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Comparar"
+              )}
             </Button>
           </Card>
         </div>
@@ -1023,8 +1325,18 @@ export function Reportes() {
                   <thead className="bg-muted uppercase font-black text-[11px] text-muted-foreground border-b print:bg-slate-100 dark:bg-slate-800 print:text-foreground">
                     <tr>
                       {[
-                        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-                        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+                        "Ene",
+                        "Feb",
+                        "Mar",
+                        "Abr",
+                        "May",
+                        "Jun",
+                        "Jul",
+                        "Ago",
+                        "Sep",
+                        "Oct",
+                        "Nov",
+                        "Dic",
                       ].map((m) => (
                         <th
                           key={m}
@@ -1038,9 +1350,18 @@ export function Reportes() {
                   <tbody className="text-sm">
                     <tr>
                       {[
-                        datosPivot.ene, datosPivot.feb, datosPivot.mar, datosPivot.abr,
-                        datosPivot.may, datosPivot.jun, datosPivot.jul, datosPivot.ago,
-                        datosPivot.sep, datosPivot.oct, datosPivot.nov, datosPivot.dic,
+                        datosPivot.ene,
+                        datosPivot.feb,
+                        datosPivot.mar,
+                        datosPivot.abr,
+                        datosPivot.may,
+                        datosPivot.jun,
+                        datosPivot.jul,
+                        datosPivot.ago,
+                        datosPivot.sep,
+                        datosPivot.oct,
+                        datosPivot.nov,
+                        datosPivot.dic,
                       ].map((v, i) => (
                         <td
                           key={i}
@@ -1074,8 +1395,12 @@ export function Reportes() {
                   <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest print:bg-slate-100 dark:bg-slate-800 print:text-foreground print:border-slate-300 dark:border-slate-600">
                     <tr>
                       <th className="p-6 print:p-3">Cód.</th>
-                      <th className="p-6 print:p-3">Descripción del Artículo</th>
-                      <th className="p-6 print:p-3 text-center">Existencia Real</th>
+                      <th className="p-6 print:p-3">
+                        Descripción del Artículo
+                      </th>
+                      <th className="p-6 print:p-3 text-center">
+                        Existencia Real
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 print:divide-slate-200">
@@ -1169,7 +1494,10 @@ export function Reportes() {
             >
               <div className="absolute top-0 left-0 w-full h-1.5 bg-red-600 print:h-2"></div>
               <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
-                <Undo2 className="text-red-600 dark:text-red-400 print:text-red-800" size={28} />{" "}
+                <Undo2
+                  className="text-red-600 dark:text-red-400 print:text-red-800"
+                  size={28}
+                />{" "}
                 Reporte de Pérdidas
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
