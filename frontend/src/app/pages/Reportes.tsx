@@ -849,6 +849,24 @@ export function Reportes() {
     }, 200);
   };
 
+  const getNombreReporteActivo = () => {
+    switch (seleccionVista) {
+      case "1": return "Reporte de Ventas (Resumen Gerencial)";
+      case "2": return "Análisis Mensual de Ventas (Pivot)";
+      case "3": return "Productos Abastecidos por Proveedor";
+      case "4": return "Reporte Detallado de Devoluciones";
+      case "5": return "Reporte General de Pérdidas de Inventario";
+      case "6": return "Reporte de Ventas Filtradas por Estado";
+      case "7": return "Top Productos Más Vendidos";
+      case "8": return "Reporte de Margen de Ganancia por Producto";
+      case "9": return "Comparación de Rendimiento de Períodos de Venta";
+      case "10": return "Reporte de Compras y Entradas de Inventario";
+      case "11": return "Productos Sin Movimiento en Inventario";
+      case "todos": return "Reporte General Consolidado (Todos los Módulos)";
+      default: return "Reportes Gerenciales y Operativos";
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-4">
       {/* TÍTULO PRINCIPAL (PANTALLA) */}
@@ -865,26 +883,43 @@ export function Reportes() {
 
       {/* HEADER DE IMPRESIÓN */}
       {imprimiendo && (
-        <div className="flex flex-col mb-10 border-b-4 border-slate-900 pb-6 print:break-after-avoid">
-          <div className="flex justify-between items-end">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-4xl font-black text-foreground uppercase tracking-tighter">
-                MISCELÁNEA BENDICIÓN DE DIOS
-              </h1>
-              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest"></p>
+        <div className="flex flex-col mb-8 pb-4 print:break-after-avoid" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+          {/* Membrete Centrado */}
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-serif font-black text-blue-900 uppercase tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
+              MISCELÁNEA BENDICIÓN DE DIOS
+            </h1>
+            <p className="text-[10px] text-slate-500 tracking-widest uppercase mt-1">
+              Managua, Nicaragua • Tel: +505 8888-8888 • Documentación de Inventario y Ventas
+            </p>
+            {/* Doble línea de acento elegante */}
+            <div className="mt-3 border-t border-blue-900"></div>
+            <div className="mt-0.5 border-t-2 border-blue-900"></div>
+          </div>
+
+          {/* Título Oficial del Reporte */}
+          <div className="text-center mb-6">
+            <h2 className="text-lg font-black text-blue-800 uppercase tracking-wider">
+              {getNombreReporteActivo()}
+            </h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              Estado: Documento Oficial de Control
+            </p>
+          </div>
+
+          {/* Metadatos del Reporte */}
+          <div className="print-meta-box">
+            <div className="space-y-1">
+              <p><strong>RANGO DE FECHAS:</strong> {fechaInicio && fechaFin ? `${fechaInicio.split("-").reverse().join("/")} al ${fechaFin.split("-").reverse().join("/")}` : "Histórico Completo"}</p>
+              {seleccionVista === "9" && (
+                <p><strong>PERIODOS COMPARATIVOS:</strong> A: {fechaInicioA} al {fechaFinA} | B: {fechaInicioB} al {fechaFinB}</p>
+              )}
+              <p><strong>MONEDA DE CONTROL:</strong> Córdoba Nicaragüense (C$)</p>
             </div>
-            <div className="text-right flex flex-col items-end gap-2">
-              <span className="text-xs font-black text-foreground uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-4 py-1.5 rounded-md border border-slate-300 dark:border-slate-600">
-                Documento Oficial
-              </span>
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                Emisión:{" "}
-                {new Date().toLocaleDateString("es-NI", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
+            <div className="text-right space-y-1">
+              <p><strong>FECHA DE EMISIÓN:</strong> {new Date().toLocaleDateString("es-NI", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+              <p><strong>SOPORTE TÉCNICO:</strong> Sistema Automatizado de Ventas</p>
+              <p><strong>VALIDACIÓN:</strong> Administrativa</p>
             </div>
           </div>
         </div>
@@ -892,11 +927,11 @@ export function Reportes() {
 
       {/* BARRA DE ACCIONES DEL REPORTE ACTIVO (MODO ENFOQUE) */}
       {!imprimiendo && seleccionVista !== "menu" && (
-        <div className="bg-slate-900 dark:bg-slate-950 text-white rounded-2xl p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => setSeleccionVista("menu")}
-            className="hover:bg-slate-800 text-slate-300 hover:text-white font-bold"
+            className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold"
           >
             <Undo2 className="size-5 mr-2" />
             Volver a los reportes
@@ -905,15 +940,15 @@ export function Reportes() {
           <div className="flex gap-3">
             <Button
               onClick={handleImprimirPDF}
-              className="bg-slate-700 hover:bg-slate-600 font-bold text-xs shadow-md"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md gap-2 flex items-center transition-all hover:scale-105 active:scale-95"
             >
-              <Printer size={16} className="mr-2" /> Imprimir PDF
+              <Printer size={16} /> Imprimir PDF
             </Button>
             <Button
               onClick={exportarExcelEstetico}
-              className="bg-green-600 hover:bg-green-700 font-bold text-xs shadow-md"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md gap-2 flex items-center transition-all hover:scale-105 active:scale-95"
             >
-              <FileSpreadsheet size={16} className="mr-2" /> Exportar Excel
+              <FileSpreadsheet size={16} /> Exportar Excel
             </Button>
           </div>
         </div>
@@ -1265,10 +1300,10 @@ export function Reportes() {
         {resultadoGerencial &&
           (seleccionVista === "1" || seleccionVista === "todos") && (
             <Card
-              className={`p-6 border-l-8 border-green-500 bg-card ${imprimiendo ? "border shadow-none block" : "shadow-xl"} print:break-inside-avoid`}
+              className={`p-6 border-l-8 border-blue-600 bg-card ${imprimiendo ? "border shadow-none block" : "shadow-xl"} print:break-inside-avoid`}
             >
               <div className="flex flex-col md:flex-row md:items-end justify-between border-b pb-2 mb-4">
-                <h4 className="font-black text-green-700 dark:text-green-400 uppercase flex items-center gap-2 print:text-green-800">
+                <h4 className="font-black text-blue-700 dark:text-blue-400 uppercase flex items-center gap-2 print:text-blue-800">
                   <TrendingUp size={22} /> Resumen de Desempeño
                 </h4>
                 <span className="text-xs font-bold text-muted-foreground print:text-muted-foreground uppercase tracking-widest mt-2 md:mt-0">
@@ -1314,7 +1349,7 @@ export function Reportes() {
         {datosPivot &&
           (seleccionVista === "2" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
               <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
               <h4 className="font-black mb-6 flex items-center gap-2 text-blue-700 dark:text-blue-400 text-lg uppercase tracking-widest print:text-blue-800">
@@ -1322,7 +1357,7 @@ export function Reportes() {
               </h4>
               <div className="overflow-x-auto rounded-2xl border border-border shadow-inner print:shadow-none print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-center">
-                  <thead className="bg-muted uppercase font-black text-[11px] text-muted-foreground border-b print:bg-slate-100 dark:bg-slate-800 print:text-foreground">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 uppercase font-black text-[11px] text-blue-800 dark:text-blue-300 print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       {[
                         "Ene",
@@ -1382,17 +1417,17 @@ export function Reportes() {
             <Card
               className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-purple-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Users
-                  className="text-purple-600 dark:text-purple-400 print:text-purple-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Productos abastecidos por el proveedor
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left print:border-collapse">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest print:bg-slate-100 dark:bg-slate-800 print:text-foreground print:border-slate-300 dark:border-slate-600">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6 print:p-3">Cód.</th>
                       <th className="p-6 print:p-3">
@@ -1432,17 +1467,17 @@ export function Reportes() {
             <Card
               className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Undo2
-                  className="text-orange-600 dark:text-orange-400 print:text-orange-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Reporte de Devoluciones
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left print:border-collapse">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest print:bg-slate-100 dark:bg-slate-800 print:text-foreground print:border-slate-300 dark:border-slate-600">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6 print:p-3">ID Sol.</th>
                       <th className="p-6 print:p-3">Producto</th>
@@ -1490,19 +1525,19 @@ export function Reportes() {
         {resultadoPerdidas.length > 0 &&
           (seleccionVista === "5" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-red-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Undo2
-                  className="text-red-600 dark:text-red-400 print:text-red-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Reporte de Pérdidas
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">ID</th>
                       <th className="p-6">Producto</th>
@@ -1546,19 +1581,19 @@ export function Reportes() {
         {resultadoVentasFiltradas.length > 0 &&
           (seleccionVista === "6" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-green-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <TrendingUp
-                  className="text-green-600 dark:text-green-400 print:text-green-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Ventas Filtradas
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">ID Venta</th>
                       <th className="p-6">Fecha</th>
@@ -1592,10 +1627,10 @@ export function Reportes() {
         {resultadoTopProductos.length > 0 &&
           (seleccionVista === "7" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
               <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Package
                   className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
@@ -1604,7 +1639,7 @@ export function Reportes() {
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">Producto</th>
                       <th className="p-6">Categoría</th>
@@ -1638,19 +1673,19 @@ export function Reportes() {
         {resultadoGananciaProducto.length > 0 &&
           (seleccionVista === "8" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-purple-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <TrendingUp
-                  className="text-purple-600 dark:text-purple-400 print:text-purple-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Ganancia Por Producto
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">Producto</th>
                       <th className="p-6">Total Ventas</th>
@@ -1684,19 +1719,19 @@ export function Reportes() {
         {resultadoComparacion.length > 0 &&
           (seleccionVista === "9" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <TrendingUp
-                  className="text-indigo-600 dark:text-indigo-400 print:text-indigo-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Comparación de Periodos
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">Métrica</th>
                       <th className="p-6">Periodo A</th>
@@ -1739,19 +1774,19 @@ export function Reportes() {
         {resultadoComprasFiltradas.length > 0 &&
           (seleccionVista === "10" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-teal-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Package
-                  className="text-teal-600 dark:text-teal-400 print:text-teal-800"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Compras Filtradas
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">ID Compra</th>
                       <th className="p-6">Fecha</th>
@@ -1787,19 +1822,19 @@ export function Reportes() {
         {resultadoSinMovimiento.length > 0 &&
           (seleccionVista === "11" || seleccionVista === "todos") && (
             <Card
-              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"} print:break-inside-avoid`}
+              className={`p-8 border-0 bg-card relative ${imprimiendo ? "border border-border shadow-none p-6 block overflow-visible" : "shadow-2xl overflow-hidden"}`}
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-600 print:h-2"></div>
-              <h4 className="font-black text-xl flex items-center gap-2 text-foreground uppercase tracking-tighter mb-8 print:mb-6">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 print:h-2"></div>
+              <h4 className="font-black text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400 uppercase tracking-tighter mb-8 print:mb-6">
                 <Package
-                  className="text-muted-foreground print:text-foreground"
+                  className="text-blue-600 dark:text-blue-400 print:text-blue-800"
                   size={28}
                 />{" "}
                 Productos Sin Movimiento
               </h4>
               <div className="overflow-x-auto border border-border rounded-3xl shadow-sm print:rounded-lg print:border-slate-300 dark:border-slate-600 print:overflow-visible">
                 <table className="w-full text-left">
-                  <thead className="bg-muted border-b text-[12px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <thead className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/50 text-[12px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest print:bg-blue-50 print:text-blue-900 print:border-blue-200">
                     <tr>
                       <th className="p-6">Producto</th>
                       <th className="p-6">Categoría</th>
@@ -1829,65 +1864,175 @@ export function Reportes() {
               </div>
             </Card>
           )}
+
+        {/* FIRMAS DE VALIDACIÓN EN IMPRESIÓN */}
+        {imprimiendo && (
+          <div className="mt-16 pt-8 border-t border-slate-200 grid grid-cols-2 gap-12 text-center text-xs print:break-inside-avoid">
+            <div className="flex flex-col items-center">
+              <div className="w-48 border-b border-slate-400 h-10"></div>
+              <p className="mt-2 font-bold text-slate-700">Firma Autorizada</p>
+              <p className="text-[10px] text-slate-400">Responsable de Inventario</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-48 border-b border-slate-400 h-10"></div>
+              <p className="mt-2 font-bold text-slate-700">Sello de Control</p>
+              <p className="text-[10px] text-slate-400">Administración General</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <style>{`
         @media print {
           @page { size: letter; margin: 1.5cm; }
           .no-print { display: none !important; }
+          
+          /* Reset de cuerpo de impresión */
           body { 
             background: #ffffff !important; 
             padding: 0 !important; 
+            margin: 0 !important;
             -webkit-print-color-adjust: exact !important; 
             print-color-adjust: exact !important; 
-            color: #0f172a !important;
+            color: #1e293b !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
           }
           
-          /* Mejoras visuales para impresión */
-          h1, h2, h3, h4, th, p, span, td {
-            color: #0f172a !important;
+          /* Encabezados Azules */
+          h1, h2, h3, h4, th, .text-blue-700, .text-blue-600 {
+            color: #1e3a8a !important; /* Royal / Navy Blue */
+          }
+          
+          /* Título de reporte con barra lateral de acento azul */
+          h4 {
+            font-size: 1.15rem !important;
+            font-weight: 800 !important;
+            border-left: 4px solid #2563eb !important;
+            padding-left: 0.5rem !important;
+            margin-top: 1.5rem !important;
+            margin-bottom: 0.75rem !important;
+            text-transform: uppercase !important;
           }
 
-          /* Evitar desborde de tablas con múltiples columnas */
+          /* Quitar el formato de "caja de captura de pantalla" (bordes y sombras) */
+          div.bg-card, div.shadow-xl, div.shadow-2xl, div.border {
+            background-color: transparent !important;
+            border: none !important;
+            border-left: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 0 1.5rem 0 !important;
+            border-radius: 0 !important;
+          }
+          
+          div.overflow-x-auto {
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          
+          /* Quitar barras decorativas superiores de pantalla */
+          .absolute.top-0.left-0 {
+            display: none !important;
+          }
+          .border-l-8.border-blue-600 {
+            border-left: none !important;
+          }
+          
+          /* Caja de metadatos del reporte oficial */
+          .print-meta-box {
+            background-color: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            padding: 0.75rem 1rem !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-top: 1rem !important;
+            margin-bottom: 1.5rem !important;
+          }
+
+          /* Formato de tabla premium */
           table {
             width: 100% !important;
             border-collapse: collapse !important;
-            table-layout: fixed !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.5rem !important;
           }
-          th, td {
-            padding: 0.4rem !important;
-            font-size: 0.65rem !important;
-            word-wrap: break-word !important;
-            white-space: normal !important;
+          
+          th {
+            background-color: #eff6ff !important; /* Fondo azul muy sutil */
+            color: #1e3a8a !important; /* Texto azul marino */
+            border-bottom: 2px solid #bfdbfe !important;
+            font-weight: 700 !important;
+            font-size: 0.75rem !important;
+            padding: 0.6rem 0.5rem !important;
+            text-align: left !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+          }
+          
+          /* Centrar columnas específicas */
+          th.text-center, td.text-center {
+            text-align: center !important;
+          }
+          
+          /* Alinear a la derecha columnas específicas */
+          th.text-right, td.text-right {
+            text-align: right !important;
           }
 
-          th {
-            background-color: #f1f5f9 !important; /* bg-slate-100 dark:bg-slate-800 */
-            border-bottom: 2px solid #cbd5e1 !important; /* border-slate-300 dark:border-slate-600 */
-          }
           td {
-            border-bottom: 1px solid #e2e8f0 !important; /* border-border */
+            border-bottom: 1px solid #e2e8f0 !important;
+            padding: 0.5rem 0.5rem !important;
+            font-size: 0.7rem !important;
+            color: #334155 !important;
           }
-          .print\\:bg-slate-100 dark:bg-slate-800 { background-color: #f1f5f9 !important; }
-          .print\\:bg-card { background-color: #ffffff !important; }
-          .print\\:border-slate-300 dark:border-slate-600 { border-color: #cbd5e1 !important; }
-          .print\\:text-muted-foreground { color: #64748b !important; }
-          .print\\:text-foreground { color: #334155 !important; }
-          .print\\:text-foreground { color: #1e293b !important; }
-          .print\\:text-foreground { color: #0f172a !important; }
-          
+
+          /* Filas alternadas (Zebra striping) en impresión */
+          tbody tr:nth-child(even) td {
+            background-color: #f8fafc !important;
+          }
+
           /* Evitar cortes indeseados */
           thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
-          tr { page-break-inside: avoid; }
-          .print\\:break-inside-avoid { page-break-inside: avoid; }
-          .print\\:break-after-avoid { page-break-after: avoid; }
-          
+          tr { page-break-inside: avoid; break-inside: avoid; }
+          .print\\:break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
+          .print\\:break-after-avoid { page-break-after: avoid; break-after-avoid; }
+
           #sonner-toaster, [data-sonner-toaster] { display: none !important; }
+
+          /* Estilo para badges en impresión (Existencias, Estados) */
+          .print\\:bg-red-100 { 
+            background-color: #fee2e2 !important; 
+            color: #991b1b !important; 
+            border: 1px solid #fca5a5 !important; 
+            border-radius: 4px !important;
+            padding: 2px 6px !important;
+          }
+          .print\\:bg-green-100 { 
+            background-color: #dcfce3 !important; 
+            color: #166534 !important; 
+            border: 1px solid #86efac !important; 
+            border-radius: 4px !important;
+            padding: 2px 6px !important;
+          }
           
-          /* Estilo para los badges en impresión */
-          .print\\:bg-red-100 { background-color: #fee2e2 !important; color: #991b1b !important; border-color: #fca5a5 !important; }
-          .print\\:bg-green-100 { background-color: #dcfce3 !important; color: #166534 !important; border-color: #86efac !important; }
+          /* Diseño de cuadrícula de resumen gerencial en impresión */
+          .grid-cols-1.md\\:grid-cols-3 {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 1rem !important;
+            margin-bottom: 1.5rem !important;
+          }
+          .grid-cols-1.md\\:grid-cols-3 > div {
+            border: 1px solid #e2e8f0 !important;
+            padding: 0.75rem !important;
+            border-radius: 6px !important;
+            background-color: #f8fafc !important;
+          }
         }
       `}</style>
     </div>

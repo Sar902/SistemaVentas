@@ -191,7 +191,7 @@ export function DashboardLayout() {
       {/* ── Sidebar Desktop (siempre visible en md+) ────────────────────── */}
       {/* `fixed`: Permanece en su posición aunque se haga scroll en el contenido. */}
       {/* `z-40`: Por encima del contenido pero debajo de modales (z-50+). */}
-      <aside className="hidden md:flex md:flex-col fixed left-0 top-0 h-screen w-64 bg-card border-r border-border shadow-sm z-40 transition-colors">
+      <aside className="print:hidden hidden md:flex md:flex-col fixed left-0 top-0 h-screen w-64 bg-card border-r border-border shadow-sm z-40 transition-colors">
         <SidebarContent />
       </aside>
 
@@ -201,11 +201,11 @@ export function DashboardLayout() {
           cierren el overlay (el evento no sube al backdrop). */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden print:hidden"
           onClick={() => setIsSidebarOpen(false)}
         >
           <aside
-            className="fixed left-0 top-0 h-screen w-64 bg-card shadow-lg flex flex-col transition-colors"
+            className="fixed left-0 top-0 h-screen w-64 bg-card shadow-lg flex flex-col transition-colors print:hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <SidebarContent mobile />
@@ -215,7 +215,7 @@ export function DashboardLayout() {
 
       {/* ── Área de Contenido Principal ─────────────────────────────────── */}
       {/* md:ml-64: En desktop, empuja el contenido a la derecha del sidebar. */}
-      <div className="md:ml-64 min-h-screen">
+      <div className="md:ml-64 min-h-screen print:ml-0">
         {/* Header sticky: Permanece visible al hacer scroll */}
         <header className="print:hidden bg-card border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
           <div className="flex items-center justify-between px-4 md:px-8 py-4">
@@ -260,7 +260,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Área donde React Router renderiza la página actual (Outlet) */}
-        <main className="p-4 md:p-8">
+        <main className="p-4 md:p-8 print:p-0">
           <Outlet />
         </main>
       </div>
