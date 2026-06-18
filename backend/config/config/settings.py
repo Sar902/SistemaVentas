@@ -229,6 +229,11 @@ CORS_ALLOWED_ORIGINS = [
     
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+
+    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app/"
+
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # En producción, agregar la URL del frontend de Railway dinámicamente.
