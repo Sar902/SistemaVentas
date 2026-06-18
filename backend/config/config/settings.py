@@ -79,7 +79,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',
     # Django REST Framework: Provee las clases base para la API (APIView,
     # ModelViewSet, serializers, permisos, paginación).
     'rest_framework',
