@@ -109,7 +109,6 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',   # Sirve archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',   # Protección CSRF
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -226,8 +225,11 @@ AUTH_USER_MODEL = 'usuarios.Usuario'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "corsheaders.middleware.CorsMiddleware",
+    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app/",
+    
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # En producción, agregar la URL del frontend de Railway dinámicamente.
 FRONTEND_URL = os.environ.get('FRONTEND_URL')
