@@ -236,7 +236,9 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://sistema-ventas-.*\.vercel\.app$",
 ]
-
+CORS_ORIGIN_REGEX_WHITELIST = [
+    r"^https://sistema-ventas-.*\.vercel\.app$",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # En producción, agregar la URL del frontend de Railway dinámicamente.
