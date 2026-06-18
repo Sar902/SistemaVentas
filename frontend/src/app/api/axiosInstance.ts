@@ -25,7 +25,7 @@ import axios from "axios";
  * beneficiarse de los interceptores de autenticación automáticos.
  */
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_URL || "/api",
 });
 
 // ─── REQUEST INTERCEPTOR ─────────────────────────────────────────────────────
@@ -115,7 +115,9 @@ api.interceptors.response.use(
         // petición NO sea interceptada por este mismo interceptor de respuesta.
         // Si usáramos `api.post(...)`, un 401 del refresh endpoint volvería a
         // disparar este código creando un bucle infinito.
-        const { data } = await axios.post("/api/token/refresh/", {
+        const { data } = await axios.post(
+          `${import.meta.env.VITE_API_URL || "/api"}/token/refresh/`,
+          {
           refresh: refreshToken,
         });
 

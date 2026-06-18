@@ -18,6 +18,9 @@ __pycache__/
 
 # Django
 db.sqlite3
+staticfiles/
+*.dump
+*.log
 
 # IDE
 .vscode/

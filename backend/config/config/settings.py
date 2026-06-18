@@ -20,6 +20,7 @@ PATRÓN DE SEGURIDAD (Variables de Entorno):
 import os
 from pathlib import Path
 from datetime import timedelta
+import dj_database_url
 
 # ─── Carga del archivo .env en entornos de desarrollo ────────────────────────
 # Se usa un bloque try/except para que la app no falle si python-dotenv no está
@@ -61,7 +62,7 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 # ALLOWED_HOSTS: Lista de hosts/dominios que pueden recibir peticiones.
 # Protege contra ataques de "Host Header Poisoning". En producción se añade
 # el dominio real del servidor (ej: 'mi-tienda.com').
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,.railway.app').split(',')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -104,6 +105,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',       # CORS: debe ir PRIMERO
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',   # Sirve archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',   # Protección CSRF
@@ -141,16 +143,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #   2. PostgreSQL tiene soporte de bloqueo por fila (SELECT FOR UPDATE) que se
 #      usa en las transacciones atómicas de venta para evitar "double-spend"
 #      (vender el mismo artículo de inventario dos veces simultáneamente).
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'bendicion_de_dios'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Nunca hardcodear
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+# Si Railway inyecta DATABASE_URL, se usa dj-database-url para parsearla.
+# En desarrollo local, se usan las variables individuales del .env.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'bendicion_de_dios'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Nunca hardcodear
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+        }
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -186,6 +196,10 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise: Comprime y cachea archivos estáticos automáticamente.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -209,6 +223,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# En producción, agregar la URL del frontend de Railway dinámicamente.
+FRONTEND_URL = os.environ.get('FRONTEND_URL')
+if FRONTEND_URL:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
