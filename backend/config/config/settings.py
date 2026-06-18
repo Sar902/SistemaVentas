@@ -225,14 +225,13 @@ AUTH_USER_MODEL = 'usuarios.Usuario'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app/",
-    
+    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app",
+    "https://sistema-ventas-eight.vercel.app", # <-- ¡Agrega tu nueva URL de Vercel!
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-
-    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app/"
-
+    "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app",
+    "https://sistema-ventas-eight.vercel.app" # <-- Agrégala aquí también
 ]
 CORS_ALLOW_CREDENTIALS = True
 
