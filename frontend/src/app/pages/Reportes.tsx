@@ -51,10 +51,21 @@ import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
+
+
+
+
 export function Reportes() {
   // ── Datos maestros cargados al montar (listas para los selects) ─────────────
   const [productosLista, setProductosLista] = useState<any[]>([]);
   const [proveedoresLista, setProveedoresLista] = useState<any[]>([]);
+
+const formatarFecha = (fecha: string, esFin: boolean) => {
+  if (!fecha) return "";
+  // Si la fecha ya tiene hora, la limpiamos
+  const fechaLimpia = fecha.split('T')[0];
+  return esFin ? `${fechaLimpia}T23:59:59` : `${fechaLimpia}T00:00:00`;
+};
 
   // ── Estados específicos de cada reporte (datos + spinner) ───────────────────
   const [anio, setAnio] = useState(new Date().getFullYear().toString());
@@ -167,7 +178,7 @@ export function Reportes() {
     setLoadingGerencial(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
+        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
       );
       setResultadoGerencial(data);
       toast.success("Reporte generado con éxito");
@@ -247,7 +258,7 @@ export function Reportes() {
     setLoadingDevoluciones(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
+        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
       );
       if (data.length === 0) {
         setResultadoDevoluciones([]);
@@ -270,7 +281,7 @@ export function Reportes() {
     setLoadingPerdidas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}`,
+        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
       );
       if (data.length === 0) {
         setResultadoPerdidas([]);
@@ -293,7 +304,7 @@ export function Reportes() {
     setLoadingVentasFiltradas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&estado=${estadoVentaFiltrada}`,
+        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&estado=${estadoVentaFiltrada}`,
       );
       setResultadoVentasFiltradas(data);
       if (data.length > 0) {
@@ -314,7 +325,7 @@ export function Reportes() {
     setLoadingTopProductos(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&limite=${limiteTopProductos}`,
+        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&limite=${limiteTopProductos}`,
       );
       setResultadoTopProductos(data);
       if (data.length > 0) {
@@ -335,7 +346,7 @@ export function Reportes() {
     setLoadingGananciaProducto(true);
     try {
      const { data } = await api.get(
-      `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&producto_id=${productoGananciaId}`,
+      `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&producto_id=${productoGananciaId}`,
      );
       setResultadoGananciaProducto(data);
       if (data.length > 0) {
@@ -399,7 +410,7 @@ export function Reportes() {
     setLoadingComprasFiltradas(true);
     try {
       const { data } = await api.get(
-     `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&proveedor_id=${proveedorComprasId}`,
+     `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&proveedor_id=${proveedorComprasId}`,
      );
       setResultadoComprasFiltradas(data);
       if (data.length > 0) {
