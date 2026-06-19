@@ -178,7 +178,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingGerencial(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
+        `/ventas/reporte-gerencial/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}`,
       );
       setResultadoGerencial(data);
       toast.success("Reporte generado con éxito");
@@ -258,7 +258,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingDevoluciones(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
+        `/ventas/reporte-devoluciones/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}`,
       );
       if (data.length === 0) {
         setResultadoDevoluciones([]);
@@ -281,7 +281,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingPerdidas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)`,
+        `/ventas/reporte-perdidas/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}`,
       );
       if (data.length === 0) {
         setResultadoPerdidas([]);
@@ -304,7 +304,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingVentasFiltradas(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&estado=${estadoVentaFiltrada}`,
+        `/ventas/reporte-ventas-filtradas/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}&estado=${estadoVentaFiltrada}`,
       );
       setResultadoVentasFiltradas(data);
       if (data.length > 0) {
@@ -325,7 +325,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingTopProductos(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&limite=${limiteTopProductos}`,
+        `/ventas/reporte-top-productos/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}&limite=${limiteTopProductos}`,
       );
       setResultadoTopProductos(data);
       if (data.length > 0) {
@@ -346,7 +346,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingGananciaProducto(true);
     try {
      const { data } = await api.get(
-      `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&producto_id=${productoGananciaId}`,
+      `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}&producto_id=${productoGananciaId}`,
      );
       setResultadoGananciaProducto(data);
       if (data.length > 0) {
@@ -410,7 +410,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     setLoadingComprasFiltradas(true);
     try {
       const { data } = await api.get(
-     `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=formatarFecha(fechaFin, true)&proveedor_id=${proveedorComprasId}`,
+     `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${formatarFecha(fechaFin, true)}&proveedor_id=${proveedorComprasId}`,
      );
       setResultadoComprasFiltradas(data);
       if (data.length > 0) {

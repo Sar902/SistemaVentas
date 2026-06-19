@@ -16,35 +16,22 @@
  *   que redirige `/api/*` → `http://localhost:8000/api/*`. Esto evita hardcodear
  *   la URL del servidor, haciendo el código portable entre entornos.
  */
+/**
+ * @fileoverview Instancia global de Axios con interceptores JWT.
+ */
 
 import axios from "axios";
 
-/**
- * Instancia de Axios preconfigurada para toda la aplicación.
- * Usar siempre esta instancia en lugar de `axios` directamente para
- * beneficiarse de los interceptores de autenticación automáticos.
- */
+// Instancia principal de Axios
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
 });
+
 // ─── REQUEST INTERCEPTOR ─────────────────────────────────────────────────────
-/**
- * Interceptor de peticiones salientes.
- *
- * Se ejecuta ANTES de que cada petición sea enviada al servidor.
- * Lee el access token del localStorage e inyecta el header `Authorization`
- * en el formato Bearer que Django REST Framework espera.
- *
- * POR QUÉ INTERCEPTOR Y NO HEADER ESTÁTICO:
- *   El token puede cambiar durante la sesión (cuando se renueva via refresh).
- *   Leerlo del localStorage en cada petición garantiza que siempre se use
- *   el token más reciente, sin necesidad de reinicializar la instancia de Axios.
- */
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accessToken");
     if (token) {
-      // Formato estándar OAuth 2.0 Bearer Token
       config.headers["Authorization"] = `Bearer ${token}`;
     }
     return config;
@@ -52,93 +39,47 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── RESPONSE INTERCEPTOR (Renovación Silenciosa de Sesión) ──────────────────
-/**
- * Interceptor de respuestas entrantes — Manejo de sesiones expiradas.
- *
- * Se ejecuta DESPUÉS de que el servidor responde. Si detecta un error 401
- * (Unauthorized), intenta renovar el access token silenciosamente usando el
- * refresh token antes de forzar un logout.
- *
- * FLUJO COMPLETO DE RENOVACIÓN:
- *   1. Petición original → Servidor devuelve 401 (access token expirado)
- *   2. Interceptor detecta el 401.
- *   3. Interceptor hace POST /api/token/refresh/ con el refresh token.
- *   4. Si el servidor devuelve un nuevo access token:
- *      a. Se guarda en localStorage.
- *      b. Se reintenta la petición original con el nuevo token.
- *      c. El usuario nunca se entera de que hubo un problema.
- *   5. Si el refresh token también está expirado o es inválido:
- *      a. Se limpian ambos tokens del localStorage.
- *      b. Se redirige al usuario al login.
- *
- * PROTECCIONES ANTI-BUCLE INFINITO:
- *   Se usan 3 condiciones de guarda para evitar que el interceptor se llame
- *   a sí mismo recursivamente:
- *   - `error.response?.status === 401`: Solo actúa en errores de autenticación.
- *   - `!originalRequest._retry`: Marca la petición para no reintentar dos veces.
- *   - `originalRequest.url !== "/token/refresh/"`: Si el PROPIO refresh falla
- *     con 401, no se reintenta de nuevo (evita bucle infinito).
- */
+// ─── RESPONSE INTERCEPTOR ────────────────────────────────────────────────────
 api.interceptors.response.use(
-  // Si la respuesta es exitosa (2xx), la pasa sin modificar
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // ── BYPASS para el endpoint de autenticación ──────────────────────────────
-    // Si el 401 viene de /token/, el backend está devolviendo un error de negocio
-    // (contraseña incorrecta, cuenta bloqueada, cuenta inactiva, etc.) con su
-    // mensaje en error.response.data.detail.
-    // NO debemos interceptarlo: dejar que el catch del Login.tsx lo maneje y
-    // muestre el mensaje al usuario. Si lo interceptamos aquí, se lanzaría el
-    // flujo de silent refresh y la página se recargaría antes de que el usuario
-    // vea el error, produciendo el "loop infinito de recarga" reportado.
-    if (originalRequest?.url?.includes("/token/")) {
+    // 1. Evitar bucle si estamos intentando refrescar o loguear
+    if (
+      originalRequest?.url?.includes("/token/") || 
+      error.response?.status !== 401 || 
+      originalRequest._retry
+    ) {
       return Promise.reject(error);
     }
 
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      originalRequest.url !== "/token/refresh/"
-    ) {
-      // Marcar esta petición como "ya reintentada" para evitar el bucle
-      originalRequest._retry = true;
+    // 2. Marcar petición como reintentada
+    originalRequest._retry = true;
 
-      try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (!refreshToken) throw new Error("No refresh token disponible");
+    try {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!refreshToken) throw new Error("No refresh token");
 
-        // IMPORTANTE: Usar `axios` limpio (no la instancia `api`) para que esta
-        // petición NO sea interceptada por este mismo interceptor de respuesta.
-        // Si usáramos `api.post(...)`, un 401 del refresh endpoint volvería a
-        // disparar este código creando un bucle infinito.
-        
-     const { data } = await api.post("/token/refresh/", {
-      refresh: refreshToken,
-      });
-        // Guardar el nuevo access token para peticiones futuras
-        localStorage.setItem("accessToken", data.access);
-        // Actualizar el header de la petición ORIGINAL que falló
-        originalRequest.headers["Authorization"] = `Bearer ${data.access}`;
+      // IMPORTANTE: Usamos 'axios' original para evitar que el interceptor 
+      // de la instancia 'api' intente capturar esta llamada interna.
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_URL || "/api"}/token/refresh/`, 
+        { refresh: refreshToken }
+      );
 
-        // Reintentar la petición original con el token renovado.
-        // `api(originalRequest)` ejecuta la petición con toda su configuración
-        // original (método, URL, body, etc.) pero con el header actualizado.
-        return api(originalRequest);
-      } catch (refreshError) {
-        // El refresh token expiró o fue invalidado (ej: el admin desactivó la cuenta).
-        // No hay forma de continuar: limpiar sesión y redirigir al login.
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
-        return Promise.reject(refreshError);
-      }
+      // 3. Guardar nuevo token y reintentar la petición original
+      localStorage.setItem("accessToken", data.access);
+      originalRequest.headers["Authorization"] = `Bearer ${data.access}`;
+      
+      return api(originalRequest);
+    } catch (refreshError) {
+      // 4. Si el refresh falla, sesión terminada
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      window.location.href = "/login";
+      return Promise.reject(refreshError);
     }
-
-    // Para cualquier otro error (400, 403, 404, 500), propagarlo sin modificar
-    return Promise.reject(error);
   }
 );
 
