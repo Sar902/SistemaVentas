@@ -119,10 +119,9 @@ export function Reportes() {
   const [resultadoPerdidas, setResultadoPerdidas] = useState<any[]>([]);
   const [loadingPerdidas, setLoadingPerdidas] = useState(false);
 
-  const fechaFinCompleta = `${fechaFin} 23:59:59`;
-  const fechaFinBCompleta = `${fechaFinB} 23:59:59`;
-  const fechaFinACompleta = `${fechaFinA} 23:59:59`;
-
+  const fechaFinCompleta = `${fechaFin}T23:59:59`;
+  const fechaFinBCompleta = `${fechaFinB}T23:59:59`;
+  const fechaFinACompleta = `${fechaFinA}T23:59:59`;
   /**
    * seleccionVista: Controla qué reporte(s) incluir en PDF/Excel y el Modo Enfoque.
    * 'menu' = Muestra cuadrícula de opciones; '1'..'11' = Muestra reporte específico.
@@ -185,8 +184,8 @@ export function Reportes() {
     setLoadingPivot(true);
     try {
       const { data } = await api.get(
-        `/ventas/reporte-pivot/?anio=${anio}&productoId=${productoSeleccionado}`,
-      );
+      `/ventas/reporte-pivot/?anio=${anio}&producto_id=${productoSeleccionado}`,
+     );
       const tieneVentas = [
         data.ene,
         data.feb,
@@ -223,7 +222,7 @@ export function Reportes() {
     setLoadingProveedor(true);
     try {
       const { data } = await api.get(
-        `/ventas/productos-proveedor/?proveedorId=${proveedorSeleccionado}`,
+      `/ventas/productos-proveedor/?proveedor_id=${proveedorSeleccionado}`,
       );
       if (data.length === 0) {
         setProductosProveedor([]);
@@ -335,9 +334,9 @@ export function Reportes() {
     if (!validarFechas(fechaInicio, fechaFin)) return;
     setLoadingGananciaProducto(true);
     try {
-      const { data } = await api.get(
-        `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&productoId=${productoGananciaId}`,
-      );
+     const { data } = await api.get(
+      `/ventas/reporte-ganancia-producto/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&producto_id=${productoGananciaId}`,
+     );
       setResultadoGananciaProducto(data);
       if (data.length > 0) {
         toast.success("Ganancias cargadas");
@@ -400,8 +399,8 @@ export function Reportes() {
     setLoadingComprasFiltradas(true);
     try {
       const { data } = await api.get(
-        `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&proveedorId=${proveedorComprasId}`,
-      );
+     `/inventario/reporte-compras-filtradas/?inicio=${fechaInicio}&fin=${fechaFinCompleta}&proveedor_id=${proveedorComprasId}`,
+     );
       setResultadoComprasFiltradas(data);
       if (data.length > 0) {
         toast.success("Compras cargadas");
