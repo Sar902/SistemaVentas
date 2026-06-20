@@ -218,18 +218,15 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     def get_salePrice(self, obj):
         """
-        Calcula el precio de venta usando el promedio de compra
+        Calcula el precio de venta usando el costo de compra del lote más reciente
         y el porcentaje de ganancia de la categoría.
-
         """
-        promedio = DetalleEntradaInventario.objects.filter(
+        ultimo_detalle = DetalleEntradaInventario.objects.filter(
             IdProducto=obj
-        ).aggregate(
-            promedio=Avg('PrecioCompraUnitario')
-        )['promedio']
+        ).order_by('-IdDetalleEntrada').first()
 
         # Si no hay compras, usar 0
-        base_price = float(promedio) if promedio else 0.0
+        base_price = float(ultimo_detalle.PrecioCompraUnitario) if ultimo_detalle else 0.0
 
         # Porcentaje de ganancia de la categoría
         profit = float(obj.IdCategoria.PorcentajeGanancia)

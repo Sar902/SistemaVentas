@@ -376,7 +376,8 @@ class ReportePivotVentasView(APIView):
     permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get(self, request):
-        anio, prod_id = request.query_params.get('anio'), request.query_params.get('productoId')
+        anio = request.query_params.get('anio')
+        prod_id = request.query_params.get('productoId') or request.query_params.get('producto_id')
         with connection.cursor() as cursor:
             cursor.execute("SELECT * FROM reporte_mensual_producto_pivot(%s, %s)", [anio, prod_id])
             columns = [col[0] for col in cursor.description]
@@ -397,9 +398,9 @@ class ProductosPorProveedorView(APIView):
     permission_classes = [IsAuthenticated, IsAdminRole]
 
     def get(self, request):
-        proveedor_id = request.query_params.get('proveedorId')
+        proveedor_id = request.query_params.get('proveedorId') or request.query_params.get('proveedor_id')
         if not proveedor_id:
-            return Response({"error": "Falta proveedorId"}, status=400)
+            return Response({"error": "Falta proveedorId o proveedor_id"}, status=400)
         with connection.cursor() as cursor:
             cursor.execute("SELECT * FROM reporte_productos_por_proveedor(%s)", [proveedor_id])
             columns = [col[0] for col in cursor.description]
@@ -559,7 +560,7 @@ class ReporteGananciaProductoView(APIView):
     def get(self, request):
         inicio = request.query_params.get('inicio')
         fin = request.query_params.get('fin')
-        producto_id = request.query_params.get('productoId', None)
+        producto_id = request.query_params.get('productoId') or request.query_params.get('producto_id') or None
 
         if not inicio or not fin:
             return Response({"error": "Faltan fechas de inicio y fin"}, status=400)
@@ -606,10 +607,10 @@ class ReporteComparacionVentasView(APIView):
 
     def get(self, request):
         # Capturar los 4 parámetros de fecha (2 períodos de comparación)
-        inicio_a = request.query_params.get('inicioA')
-        fin_a = request.query_params.get('finA')
-        inicio_b = request.query_params.get('inicioB')
-        fin_b = request.query_params.get('finB')
+        inicio_a = request.query_params.get('inicioA') or request.query_params.get('inicio_a')
+        fin_a = request.query_params.get('finA') or request.query_params.get('fin_a')
+        inicio_b = request.query_params.get('inicioB') or request.query_params.get('inicio_b')
+        fin_b = request.query_params.get('finB') or request.query_params.get('fin_b')
 
         # Validar que todos los parámetros estén presentes
         if not all([inicio_a, fin_a, inicio_b, fin_b]):
