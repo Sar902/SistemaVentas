@@ -462,25 +462,6 @@ class ReporteComprasFiltradasView(APIView):
             return Response({"error": str(e)}, status=400)
 
 class ReporteProductosSinMovimientoView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminRole]
-
-    def get(self, request):
-        dias = request.query_params.get('dias', 30)
-        try:
-            dias_int = int(dias)
-            fecha_fin = timezone.now().date()
-            fecha_inicio = fecha_fin - timedelta(days=dias_int)
-
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT * FROM sp_productos_sin_movimiento(%s, %s)",
-                    [fecha_inicio, fecha_fin]
-                )
-                columns = [col[0].lower() for col in cursor.description]
-                result = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return Response(result)
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
     """
     Reporte de productos que no han tenido ventas en los últimos N días.
 
