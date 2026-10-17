@@ -225,14 +225,16 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://sistema-ventas-jv474oxcw-saturnitos.vercel.app",
-    "https://sistema-ventas-eight.vercel.app"
+    "https://sistema-ventas-eight.vercel.app",
+    # Cubre cualquier subdominio de Railway (backend y futuros servicios)
+    "https://*.railway.app",
 ]
 
-# En producción, agregar la URL del frontend de Railway dinámicamente.
-# (Se comenta porque al tener CORS_ALLOW_ALL_ORIGINS = True ya no hace falta el .append)
-# FRONTEND_URL = os.environ.get('FRONTEND_URL')
-# if FRONTEND_URL:
-#     pass
+# Si el frontend tiene una URL personalizada (ej: dominio propio en Vercel),
+# se añade dinámicamente desde la variable de entorno FRONTEND_URL.
+FRONTEND_URL = os.environ.get('FRONTEND_URL')
+if FRONTEND_URL:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
