@@ -143,22 +143,42 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #   2. PostgreSQL tiene soporte de bloqueo por fila (SELECT FOR UPDATE) que se
 #      usa en las transacciones atómicas de venta para evitar "double-spend"
 #      (vender el mismo artículo de inventario dos veces simultáneamente).
-# Si Railway inyecta DATABASE_URL, se usa dj-database-url para parsearla.
-# En desarrollo local, se usan las variables individuales del .env.
+# PRIORIDAD DE CONFIGURACIÓN DE BD:
+#   1. DATABASE_URL  — variable explícita (Railway reference var o .env)
+#   2. PGHOST/etc.   — vars PG* que Railway inyecta automáticamente al vincular servicios
+#   3. DB_NAME/etc.  — vars individuales del .env (desarrollo local)
 DATABASE_URL = os.environ.get('DATABASE_URL')
+
 if DATABASE_URL:
+    # Railway / Heroku style: una sola URL con todo incluido
     DATABASES = {
         'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
-else:
+elif os.environ.get('PGHOST'):
+    # Railway inyecta PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+    # automáticamente cuando los servicios están en el mismo proyecto.
+    # Este bloque evita el crash si DATABASE_URL no fue añadida manualmente.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'bendicion_de_dios'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Nunca hardcodear
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
+            'NAME':     os.environ.get('PGDATABASE', 'railway'),
+            'USER':     os.environ.get('PGUSER',     'postgres'),
+            'PASSWORD': os.environ.get('PGPASSWORD', ''),
+            'HOST':     os.environ.get('PGHOST',     'localhost'),
+            'PORT':     os.environ.get('PGPORT',     '5432'),
+            'CONN_MAX_AGE': 600,
+        }
+    }
+else:
+    # Desarrollo local: variables individuales del archivo .env
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME':     os.environ.get('DB_NAME',     'bendicion_de_dios'),
+            'USER':     os.environ.get('DB_USER',     'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST':     os.environ.get('DB_HOST',     'localhost'),
+            'PORT':     os.environ.get('DB_PORT',     '5432'),
         }
     }
 
