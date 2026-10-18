@@ -34,7 +34,7 @@ import { jwtDecode } from "jwt-decode";
  *
  * @property token - Access token JWT actual, o null si no hay sesión.
  * @property userId - ID del usuario extraído del JWT, o null.
- * @property userRole - Rol del usuario ('admin' | 'vendedor'), o null.
+ * @property userRole - Rol del usuario ('admin' | 'cajero'), o null.
  * @property userName - Nombre completo del usuario, o null.
  * @property login - Función para iniciar sesión guardando los tokens.
  * @property logout - Función para cerrar sesión limpiando el estado y localStorage.

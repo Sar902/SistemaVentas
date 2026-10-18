@@ -51,6 +51,7 @@ class Categoria(models.Model):
         ('Inactivo', 'Inactivo'),
     )
     IdCategoria = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='categorias')
     Nombre = models.CharField(max_length=255, unique=True, null=False, blank=False)
     PorcentajeGanancia = models.DecimalField(
         max_digits=5,
@@ -86,6 +87,7 @@ class Proveedor(models.Model):
         ('Inactivo', 'Inactivo'),
     )
     IdProveedor = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='proveedores')
     Nombre = models.CharField(max_length=255, null=False, blank=False)
     Contacto = models.CharField(max_length=255, null=True, blank=True)
     Estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='Activo', null=False, blank=False)
@@ -119,6 +121,7 @@ class Producto(models.Model):
         ('Inactivo', 'Inactivo'),
     )
     IdProducto = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='productos')
     # on_delete=RESTRICT: No se puede borrar una Categoría si tiene Productos.
     # Esto previene "huérfanos" en la BD y fuerza al admin a mover los productos
     # a otra categoría antes de eliminar la actual.

@@ -41,11 +41,12 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from usuarios.permissions import IsAdminOrReadOnly
 from auditoria.mixins import AuditoriaMixin
+from usuarios.tenant import TenantScopedViewSet
 from .models import Categoria, Proveedor, Producto
 from .serializers import CategoriaSerializer, ProveedorSerializer, ProductoSerializer
 
 
-class CategoriaViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class CategoriaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD completo para el modelo Categoria.
 
@@ -62,7 +63,7 @@ class CategoriaViewSet(AuditoriaMixin, viewsets.ModelViewSet):
     MODULO_AUDITORIA = 'CATEGORIAS'
 
 
-class ProveedorViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class ProveedorViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD completo para el modelo Proveedor.
 
@@ -77,7 +78,7 @@ class ProveedorViewSet(AuditoriaMixin, viewsets.ModelViewSet):
     MODULO_AUDITORIA = 'PROVEEDORES'
 
 
-class ProductoViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class ProductoViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD completo para el modelo Producto.
 

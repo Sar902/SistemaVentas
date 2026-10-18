@@ -35,6 +35,7 @@ from .models import (
     EntradaInventario, DetalleEntradaInventario, Inventario,
     Perdida, DetallePerdida, SolicitudDevolucion, DetalleSolicitudDevolucion
 )
+from usuarios.tenant import TenantPrimaryKeyRelatedField
 from catalogo.models import Proveedor, Producto
 from usuarios.models import Usuario
 from django.utils import timezone
@@ -71,10 +72,10 @@ class DetalleEntradaInventarioSerializer(serializers.ModelSerializer):
       (ventas, pérdidas, devoluciones), no directamente por este endpoint.
     """
     id = serializers.IntegerField(source='IdDetalleEntrada', read_only=True)
-    entradaInventarioId = serializers.PrimaryKeyRelatedField(
+    entradaInventarioId = TenantPrimaryKeyRelatedField(
         source='IdEntradaInventario', queryset=EntradaInventario.objects.all()
     )
-    productoId = serializers.PrimaryKeyRelatedField(
+    productoId = TenantPrimaryKeyRelatedField(
         source='IdProducto', queryset=Producto.objects.all()
     )
 
@@ -122,10 +123,10 @@ class EntradaInventarioSerializer(serializers.ModelSerializer):
         read_only=True
     )
     id = serializers.IntegerField(source='IdEntradaInventario', read_only=True)
-    proveedorId = serializers.PrimaryKeyRelatedField(
+    proveedorId = TenantPrimaryKeyRelatedField(
         source='IdProveedor', queryset=Proveedor.objects.all()
     )
-    usuarioId = serializers.PrimaryKeyRelatedField(
+    usuarioId = TenantPrimaryKeyRelatedField(
         source='IdUsuario', queryset=Usuario.objects.all()
     )
     fechaEntrada = serializers.DateTimeField(source='FechaEntrada')
@@ -147,7 +148,7 @@ class InventarioSerializer(serializers.ModelSerializer):
     Devuelto) ocurren a través de vistas especializadas con transacciones atómicas.
     """
     id = serializers.IntegerField(source='IdInventario', read_only=True)
-    detalleEntradaId = serializers.PrimaryKeyRelatedField(
+    detalleEntradaId = TenantPrimaryKeyRelatedField(
         source='IdDetalleEntrada', queryset=DetalleEntradaInventario.objects.all()
     )
     estado = serializers.CharField(source='Estado')
@@ -170,10 +171,10 @@ class DetallePerdidaSerializer(serializers.ModelSerializer):
     solo para mostrar el nombre en la tabla de pérdidas.
     """
     id = serializers.IntegerField(source='IdDetallePerdida', read_only=True)
-    perdidaId = serializers.PrimaryKeyRelatedField(
+    perdidaId = TenantPrimaryKeyRelatedField(
         source='IdPerdida', queryset=Perdida.objects.all()
     )
-    inventarioId = serializers.PrimaryKeyRelatedField(
+    inventarioId = TenantPrimaryKeyRelatedField(
         source='IdInventario', queryset=Inventario.objects.all()
     )
     precioCompraUnitario = serializers.DecimalField(
@@ -208,7 +209,7 @@ class PerdidaSerializer(serializers.ModelSerializer):
     para incluir todas las unidades perdidas en el evento.
     """
     id = serializers.IntegerField(source='IdPerdida', read_only=True)
-    usuarioId = serializers.PrimaryKeyRelatedField(
+    usuarioId = TenantPrimaryKeyRelatedField(
         source='IdUsuario', queryset=Usuario.objects.all()
     )
     # Campos de auditoría: quién y con qué rol registró la pérdida
@@ -245,10 +246,10 @@ class DetalleSolicitudDevolucionSerializer(serializers.ModelSerializer):
     al crearla inicialmente.
     """
     id = serializers.IntegerField(source='IdDetalleSolicitudDevolucion', read_only=True)
-    solicitudDevolucionId = serializers.PrimaryKeyRelatedField(
+    solicitudDevolucionId = TenantPrimaryKeyRelatedField(
         source='IdSolicitudDevolucion', queryset=SolicitudDevolucion.objects.all()
     )
-    inventarioId = serializers.PrimaryKeyRelatedField(
+    inventarioId = TenantPrimaryKeyRelatedField(
         source='IdInventario', queryset=Inventario.objects.all()
     )
     # Opcional: solo se rellena cuando el proveedor rechaza este ítem específico
@@ -294,10 +295,10 @@ class SolicitudDevolucionSerializer(serializers.ModelSerializer):
     incluir todos los ítems de la solicitud en la respuesta.
     """
     id = serializers.IntegerField(source='IdSolicitudDevolucion', read_only=True)
-    entradaInventarioId = serializers.PrimaryKeyRelatedField(
+    entradaInventarioId = TenantPrimaryKeyRelatedField(
         source='IdEntradaInventario', queryset=EntradaInventario.objects.all()
     )
-    usuarioId = serializers.PrimaryKeyRelatedField(
+    usuarioId = TenantPrimaryKeyRelatedField(
         source='IdUsuario', queryset=Usuario.objects.all()
     )
     # required=False: El backend asigna 'Pendiente' por defecto (ver modelo)

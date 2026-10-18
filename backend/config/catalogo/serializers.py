@@ -26,6 +26,7 @@ from inventario.models import EntradaInventario, Inventario, DetalleEntradaInven
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Avg
+from usuarios.tenant import TenantPrimaryKeyRelatedField
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -184,9 +185,9 @@ class ProductoSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='Nombre')
     # PrimaryKeyRelatedField: Acepta un ID entero de Categoria en el POST/PUT
     # y lo convierte automáticamente en la instancia del objeto de la BD.
-    categoryId = serializers.PrimaryKeyRelatedField(source='IdCategoria', queryset=Categoria.objects.all())
+    categoryId = TenantPrimaryKeyRelatedField(source='IdCategoria', queryset=Categoria.objects.all())
     # NUEVO: Campos para proveedor y presentación (Proveedor obligatorio)
-    proveedorId = serializers.PrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=True, allow_null=False)
+    proveedorId = TenantPrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=True, allow_null=False)
     presentacion = serializers.CharField(source='Presentacion', required=False, allow_null=True, allow_blank=True)
     status = serializers.CharField(source='Estado', required=False)
     imagen = serializers.CharField(source='Imagen', required=False, allow_null=True, allow_blank=True)

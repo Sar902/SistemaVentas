@@ -134,7 +134,10 @@ class AuditoriaMixin:
             serializer: Serializer de DRF con los datos validados.
         """
         # Primero ejecutar la creación estándar de DRF
-        instance = serializer.save()
+        save_kwargs = {}
+        if hasattr(self.request.user, 'Miscelanea_id'):
+            save_kwargs['Miscelanea_id'] = self.request.user.Miscelanea_id
+        instance = serializer.save(**save_kwargs)
 
         # Capturar datos del objeto recién creado para el log
         datos_nuevos = _serializer_to_dict(dict(serializer.data))
@@ -277,6 +280,7 @@ class AuditoriaMixin:
 
             LogAuditoria.objects.create(
                 usuario=usuario,
+                Miscelanea_id=getattr(usuario, 'Miscelanea_id', None),
                 nombre_usuario=nombre_usuario,
                 accion=accion,
                 modulo=modulo_override or self.MODULO_AUDITORIA,
@@ -318,6 +322,7 @@ def registrar_evento_manual(request, accion, modulo, descripcion,
 
         LogAuditoria.objects.create(
             usuario=usuario,
+            Miscelanea_id=getattr(usuario, 'Miscelanea_id', None),
             nombre_usuario=nombre_usuario,
             accion=accion,
             modulo=modulo,

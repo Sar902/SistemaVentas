@@ -35,7 +35,7 @@ export function GestionUsuarios() {
   const [formNombre, setFormNombre] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
-  const [formRol, setFormRol] = useState("vendedor");
+  const [formRol, setFormRol] = useState("cajero");
   const [formEstado, setFormEstado] = useState("Activo");
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export function GestionUsuarios() {
 
   const resetForm = () => {
     setFormNombre(""); setFormEmail(""); setFormPassword("");
-    setFormRol("vendedor"); setFormEstado("Activo");
+    setFormRol("cajero"); setFormEstado("Activo");
   };
 
   const handleOpenAdd = () => { resetForm(); setIsAddOpen(true); };
@@ -64,7 +64,7 @@ export function GestionUsuarios() {
     setFormNombre(user.nombre || "");
     setFormEmail(user.email || "");
     setFormPassword("");
-    setFormRol(user.rol || "vendedor");
+    setFormRol(user.rol || "cajero");
     setFormEstado(user.estado || "Activo");
     setIsEditOpen(true);
   };
@@ -124,7 +124,7 @@ export function GestionUsuarios() {
         <SelectTrigger><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="admin">Administrador</SelectItem>
-          <SelectItem value="vendedor">Vendedor</SelectItem>
+          <SelectItem value="cajero">Cajero</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -185,7 +185,7 @@ export function GestionUsuarios() {
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 text-xs rounded-full font-semibold capitalize ${u.rol === 'admin' ? 'bg-slate-800 text-white' : 'bg-blue-100 text-blue-800'}`}>
-                      {u.rol === "admin" ? "Administrador" : "Vendedor"}
+                      {u.rol === "admin" ? "Administrador" : "Cajero"}
                     </span>
                   </TableCell>
                   <TableCell>

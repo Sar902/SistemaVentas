@@ -30,9 +30,10 @@ from .models import Usuario
 from .serializers import UsuarioSerializer
 from .permissions import IsAdminRole
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
+from .tenant import TenantScopedViewSet
 
 
-class UsuarioViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     ViewSet completo para operaciones CRUD sobre el modelo Usuario.
 
@@ -82,7 +83,10 @@ def cambiar_email_directo(request, user_id):
         errores HTTP estructurados.
     """
     try:
-        user = Usuario.objects.get(IdUsuario=user_id)
+        user = Usuario.objects.get(
+            IdUsuario=user_id,
+            Miscelanea_id=request.user.Miscelanea_id,
+        )
         nuevo_email = request.data.get('email')
 
         if not nuevo_email:

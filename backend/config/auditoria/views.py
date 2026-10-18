@@ -71,7 +71,7 @@ class LogAuditoriaListView(APIView):
         Los filtros se aplican acumulativamente (AND lógico).
         Todos son opcionales — sin filtros, devuelve todos los logs del sistema.
         """
-        queryset = LogAuditoria.objects.all()
+        queryset = LogAuditoria.objects.filter(Miscelanea_id=request.user.Miscelanea_id)
 
         # ── Filtros opcionales ─────────────────────────────────────────────
         modulo = request.query_params.get('modulo')

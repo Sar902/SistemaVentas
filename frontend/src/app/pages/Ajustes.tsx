@@ -187,7 +187,7 @@ export function Ajustes() {
               <Label className="text-muted-foreground dark:text-slate-400">Rol</Label>
               <p className="font-medium text-foreground dark:text-slate-100 mt-1 capitalize">
                 {/* Ajusta este campo según como retorne el rol tu backend de Django (ej: userData.rol, userData.groups[0]?.name, etc) */}
-                {userData.rol || userData.role || (userData.is_superuser ? "Administrador" : "Vendedor") || "No especificado"}
+                {userData.rol || userData.role || (userData.is_superuser ? "Administrador" : "Cajero") || "No especificado"}
               </p>
             </div>
           </div>

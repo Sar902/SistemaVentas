@@ -41,11 +41,12 @@ from usuarios.models import Usuario
 from usuarios.permissions import IsAdminRole, IsAdminOrReadOnly, CanProcessSale
 from .serializers import VentaSerializer, DetalleVentaSerializer
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
+from usuarios.tenant import TenantScopedViewSet
 
 
 # ─── VIEWSETS CRUD ────────────────────────────────────────────────────────────
 
-class VentaViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class VentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD estándar para el modelo Venta.
 
@@ -63,7 +64,7 @@ class VentaViewSet(AuditoriaMixin, viewsets.ModelViewSet):
     MODULO_AUDITORIA = 'VENTAS'
 
 
-class DetalleVentaViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class DetalleVentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD para detalles individuales de venta.
 
@@ -130,18 +131,30 @@ class ProcesarVentaView(APIView):
         detalles = request.data.get('detalles', [])
 
         try:
-            usuario = Usuario.objects.get(IdUsuario=usuario_id)
-            venta = Venta.objects.create(IdUsuario=usuario, Fecha=fecha, Total=total)
+            usuario = Usuario.objects.get(
+                IdUsuario=usuario_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+            )
+            venta = Venta.objects.create(
+                IdUsuario=usuario,
+                Miscelanea_id=request.user.Miscelanea_id,
+                Fecha=fecha,
+                Total=total,
+            )
             for d in detalles:
                 inv_id = d.get('inventarioId')
                 precio = d.get('precioVentaUnitario')
                 # select_for_update(): Bloquea esta fila hasta que la transacción termine.
                 # Si otro proceso intenta vender la misma unidad simultáneamente,
                 # esperará hasta que este bloqueo sea liberado.
-                inventario = Inventario.objects.select_for_update().get(IdInventario=inv_id)
+                inventario = Inventario.objects.select_for_update().get(
+                    IdInventario=inv_id,
+                    Miscelanea_id=request.user.Miscelanea_id,
+                )
                 DetalleVenta.objects.create(
                     IdVenta=venta,
                     IdInventario=inventario,
+                    Miscelanea_id=request.user.Miscelanea_id,
                     PrecioVentaUnitario=precio
                 )
                 # Marcar como vendida para que deje de aparecer en el stock disponible
@@ -194,7 +207,10 @@ class AnularVentaView(APIView):
         """
         try:
             # select_for_update en la Venta: Evita dos anulaciones simultáneas
-            venta = Venta.objects.select_for_update().get(pk=pk)
+            venta = Venta.objects.select_for_update().get(
+                pk=pk,
+                Miscelanea_id=request.user.Miscelanea_id,
+            )
         except Venta.DoesNotExist:
             return Response({"error": "Venta no encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -208,10 +224,14 @@ class AnularVentaView(APIView):
         # Revertir stock: cada unidad de inventario vuelve a 'Disponible'
         # select_related('IdInventario'): Optimización — obtiene el inventario
         # relacionado en el mismo query, evitando N queries adicionales.
-        detalles = DetalleVenta.objects.filter(IdVenta=venta).select_related('IdInventario')
+        detalles = DetalleVenta.objects.filter(
+            IdVenta=venta,
+            Miscelanea_id=request.user.Miscelanea_id,
+        ).select_related('IdInventario')
         for detalle in detalles:
             inventario = Inventario.objects.select_for_update().get(
-                IdInventario=detalle.IdInventario_id
+                IdInventario=detalle.IdInventario_id,
+                Miscelanea_id=request.user.Miscelanea_id,
             )
             inventario.Estado = 'Disponible'
             # Actualizar FechaMovimiento para el registro de auditoría
@@ -266,18 +286,19 @@ class DashboardStatsView(APIView):
         seven_days_ago = now - timedelta(days=7)
 
         # ── Métricas de conteo simples ─────────────────────────────────────
-        total_products = Producto.objects.count()
-        ventas_semana = Venta.objects.filter(Fecha__gte=seven_days_ago)
+        tenant_id = request.user.Miscelanea_id
+        total_products = Producto.objects.filter(Miscelanea_id=tenant_id).count()
+        ventas_semana = Venta.objects.filter(Miscelanea_id=tenant_id, Fecha__gte=seven_days_ago)
         # aggregate(total=Sum('Total')): Un solo query SQL con SUM().
         # El `or 0` maneja el caso de que no haya ventas (Sum devuelve None).
         weekly_sales = ventas_semana.aggregate(total=Sum('Total'))['total'] or 0
-        total_proveedores = Proveedor.objects.count()
+        total_proveedores = Proveedor.objects.filter(Miscelanea_id=tenant_id).count()
 
         # ── Productos con stock bajo (entre 10 y 20 unidades disponibles inclusive) ────
         # annotate(): Añade el campo calculado 'stock' a cada Producto del queryset.
         # Count con filter(): Equivale a COUNT(CASE WHEN Estado='Disponible' THEN 1 END) en SQL.
         # detalleentradainventario__inventarios: Navegación de FK a través de related_name.
-        low_stock_qs = Producto.objects.annotate(
+        low_stock_qs = Producto.objects.filter(Miscelanea_id=tenant_id).annotate(
             stock=Count(
                 'detalleentradainventario__inventarios',
                 filter=Q(detalleentradainventario__inventarios__Estado='Disponible')
@@ -301,7 +322,7 @@ class DashboardStatsView(APIView):
         } for v in recent_sales_qs]
 
         # ── Pérdidas de los últimos 7 días ─────────────────────────────────
-        perdidas_semana = Perdida.objects.filter(Fecha__gte=seven_days_ago)
+        perdidas_semana = Perdida.objects.filter(Miscelanea_id=tenant_id, Fecha__gte=seven_days_ago)
         weekly_losses = perdidas_semana.aggregate(total=Sum('Total'))['total'] or 0
 
         # ── Datos para el gráfico de barras de ventas diarias ──────────────

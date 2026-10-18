@@ -34,6 +34,7 @@ import { KeyRound, Mail, Loader2, Store, AlertCircle } from "lucide-react";
 import type { AxiosError } from "axios";
 
 export function Login() {
+  const [codigoMiscelanea, setCodigoMiscelanea] = useState("LEGACY");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -56,8 +57,8 @@ export function Login() {
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.warning("Por favor ingresa correo y contraseña");
+    if (!codigoMiscelanea || !email || !password) {
+      toast.warning("Por favor ingresa miscelánea, correo y contraseña");
       return;
     }
 
@@ -69,6 +70,7 @@ export function Login() {
       // Normalizar email: minusculas + sin espacios extremos
       const cleanEmail = email.toLowerCase().trim();
       const response = await api.post("/token/", {
+        codigo: codigoMiscelanea.trim().toUpperCase(),
         Email: cleanEmail,  // El backend espera campo 'Email' (PascalCase) por USERNAME_FIELD
         password: password
       });
@@ -115,6 +117,19 @@ export function Login() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none text-foreground">Código de miscelánea</label>
+              <div className="relative">
+                <Store className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="LEGACY"
+                  className="pl-10 h-12 uppercase"
+                  value={codigoMiscelanea}
+                  onChange={(e) => setCodigoMiscelanea(e.target.value)}
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none text-foreground">Correo Electrónico</label>
               <div className="relative">

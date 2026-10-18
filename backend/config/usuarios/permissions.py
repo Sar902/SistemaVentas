@@ -15,8 +15,8 @@ POR QUÉ PERMISOS PERSONALIZADOS:
 
 JERARQUÍA DE PERMISOS:
     IsAdminRole       → Solo administradores (reportes, anular ventas, gestión de usuarios)
-    IsAdminOrReadOnly → Admins: todo. Vendedores: solo lectura (GET, HEAD, OPTIONS).
-    CanProcessSale    → Admins y Vendedores: pueden registrar ventas.
+    IsAdminOrReadOnly → Admins: todo. Cajeros: solo lectura (GET, HEAD, OPTIONS).
+    CanProcessSale    → Admins y Cajeros: pueden registrar ventas.
 """
 
 from rest_framework import permissions
@@ -84,7 +84,7 @@ class IsAdminOrReadOnly(permissions.BasePermission):
             return True  # Acceso total a todos los métodos HTTP
 
         # Los vendedores solo pueden hacer peticiones de solo lectura
-        if rol == 'vendedor' and request.method in permissions.SAFE_METHODS:
+        if rol in ('cajero', 'vendedor') and request.method in permissions.SAFE_METHODS:
             return True
 
         # Cualquier otro caso (rol desconocido, método de escritura para vendedor)
@@ -115,4 +115,4 @@ class CanProcessSale(permissions.BasePermission):
 
         # Uso de `in` para verificar pertenencia al conjunto de roles autorizados.
         # Es más limpio y extensible que dos comparaciones == separadas.
-        return getattr(request.user, 'Rol', None) in ('admin', 'vendedor')
+        return getattr(request.user, 'Rol', None) in ('admin', 'cajero', 'vendedor')

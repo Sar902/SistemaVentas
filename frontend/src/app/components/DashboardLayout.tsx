@@ -245,7 +245,7 @@ export function DashboardLayout() {
                   <p className="text-sm font-medium text-foreground">
                     {userName || "Usuario"}
                   </p>
-                  {/* El rol se muestra como badge (admin/vendedor) */}
+                  {/* El rol se muestra como badge (admin/cajero) */}
                   <p className="text-xs font-semibold capitalize px-2 py-0.5 rounded-full inline-block mt-0.5 bg-muted text-muted-foreground">
                     {userRole || ""}
                   </p>

@@ -73,6 +73,7 @@ class EntradaInventario(models.Model):
             MinValueValidator(0): No pueden existir compras con costo negativo.
     """
     IdEntradaInventario = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='entradas_inventario')
     IdProveedor = models.ForeignKey(Proveedor, on_delete=models.RESTRICT, db_column='IdProveedor')
     IdUsuario = models.ForeignKey(Usuario, on_delete=models.RESTRICT, db_column='IdUsuario')
     FechaEntrada = models.DateTimeField(null=False, blank=False)
@@ -105,6 +106,7 @@ class DetalleEntradaInventario(models.Model):
         PrecioCompraUnitario (DecimalField): Costo por unidad.
     """
     IdDetalleEntrada = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='detalles_entrada')
     IdEntradaInventario = models.ForeignKey(
         EntradaInventario,
         on_delete=models.CASCADE,  # Si se borra la compra, sus líneas también se borran
@@ -154,6 +156,7 @@ class Inventario(models.Model):
         ('Devuelto', 'Devuelto'),
     )
     IdInventario = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='inventarios')
     IdDetalleEntrada = models.ForeignKey(
         DetalleEntradaInventario,
         on_delete=models.RESTRICT,
@@ -192,6 +195,7 @@ class Perdida(models.Model):
         ('Otra', 'Otra'),
     )
     IdPerdida = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='perdidas')
     IdUsuario = models.ForeignKey(Usuario, on_delete=models.RESTRICT, db_column='IdUsuario')
     TipoPerdida = models.CharField(max_length=20, choices=TIPO_PERDIDA_CHOICES, null=False, blank=False)
     Fecha = models.DateTimeField(null=False, blank=False)
@@ -220,6 +224,7 @@ class DetallePerdida(models.Model):
         PrecioCompraUnitario (DecimalField): Costo de la unidad perdida (valor contable).
     """
     IdDetallePerdida = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='detalles_perdida')
     IdPerdida = models.ForeignKey(Perdida, on_delete=models.CASCADE, db_column='IdPerdida')
     IdInventario = models.ForeignKey(Inventario, on_delete=models.RESTRICT, db_column='IdInventario')
     PrecioCompraUnitario = models.DecimalField(
@@ -263,6 +268,7 @@ class SolicitudDevolucion(models.Model):
         ('Rechazada', 'Rechazada'),
     )
     IdSolicitudDevolucion = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='solicitudes_devolucion')
     IdEntradaInventario = models.ForeignKey(
         EntradaInventario, on_delete=models.RESTRICT, db_column='IdEntradaInventario'
     )
@@ -298,6 +304,7 @@ class DetalleSolicitudDevolucion(models.Model):
         ('Pendiente', 'Pendiente'),
     )
     IdDetalleSolicitudDevolucion = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='detalles_devolucion')
     IdSolicitudDevolucion = models.ForeignKey(
         SolicitudDevolucion, on_delete=models.CASCADE, db_column='IdSolicitudDevolucion'
     )
@@ -343,6 +350,7 @@ def crear_items_inventario(sender, instance, created, **kwargs):
         inventarios = [
             Inventario(
                 IdDetalleEntrada=instance,
+                Miscelanea_id=instance.Miscelanea_id,
                 Estado='Disponible',
                 FechaMovimiento=timezone.now()
             )

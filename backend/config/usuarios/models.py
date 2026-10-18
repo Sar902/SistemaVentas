@@ -21,6 +21,21 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
 
+class Miscelanea(models.Model):
+    """Tenant that owns users and all business data."""
+
+    IdMiscelanea = models.AutoField(primary_key=True)
+    Nombre = models.CharField(max_length=255, null=False, blank=False)
+    Codigo = models.CharField(max_length=50, unique=True, null=False, blank=False)
+    Estado = models.CharField(max_length=10, default='Activo')
+
+    class Meta:
+        db_table = 'Miscelanea'
+
+    def __str__(self):
+        return self.Nombre
+
+
 class UsuarioManager(BaseUserManager):
     """
     Manager personalizado para el modelo Usuario.
@@ -138,7 +153,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     )
     ROL_CHOICES = (
         ('admin', 'Administrador'),
-        ('vendedor', 'Vendedor'),
+        ('cajero', 'Cajero'),
+        ('vendedor', 'Cajero (compatibilidad)'),
     )
 
     IdUsuario = models.AutoField(primary_key=True)
@@ -147,13 +163,21 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     # con el mismo correo, como segunda línea de defensa después de la validación
     # en el serializer (validate_email).
     Email = models.EmailField(unique=True, null=False, blank=False)
+    Miscelanea = models.ForeignKey(
+        Miscelanea,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column='IdMiscelanea',
+        related_name='usuarios'
+    )
 
     # Flags requeridos por PermissionsMixin para integración con el admin de Django.
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
 
     Estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='Activo')
-    Rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='vendedor')
+    Rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='cajero')
 
     # Campos para el flujo futuro de cambio de email con verificación:
     # 1. Admin solicita cambio → nuevo email va a EmailPendiente y se genera TokenVerificacion.

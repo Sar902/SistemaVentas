@@ -16,7 +16,7 @@ CONVENCIÓN DE NOMBRES (camelCase ↔ PascalCase):
 """
 
 from rest_framework import serializers
-from .models import Usuario
+from .models import Miscelanea, Usuario
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -43,10 +43,11 @@ class UsuarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(source='Password', write_only=True, required=False)
     estado = serializers.CharField(source='Estado')
     rol = serializers.CharField(source='Rol', required=False)
+    miscelaneaId = serializers.IntegerField(source='Miscelanea_id', read_only=True)
 
     class Meta:
         model = Usuario
-        fields = ['id', 'nombre', 'email', 'password', 'estado', 'rol']
+        fields = ['id', 'nombre', 'email', 'password', 'estado', 'rol', 'miscelaneaId']
 
     def create(self, validated_data):
         """
@@ -64,14 +65,15 @@ class UsuarioSerializer(serializers.ModelSerializer):
         Returns:
             Usuario: Nueva instancia guardada en BD.
         """
-        # Extraer el Rol antes de crear el usuario, ya que create_user()
-        # no lo acepta como argumento posicional. Valor por defecto: 'vendedor'.
-        rol = validated_data.pop('Rol', 'vendedor')
+        rol = validated_data.pop('Rol', 'cajero')
+        request = self.context.get('request')
+        miscelanea = getattr(getattr(request, 'user', None), 'Miscelanea', None)
         user = Usuario.objects.create_user(
             Email=validated_data['Email'],
             Password=validated_data.get('Password', ''),
             Nombre=validated_data.get('Nombre', ''),
-            Estado=validated_data.get('Estado', 'Activo')
+            Estado=validated_data.get('Estado', 'Activo'),
+            Miscelanea=miscelanea
         )
         # Asignar el Rol después de la creación y guardar de nuevo.
         user.Rol = rol
@@ -156,8 +158,15 @@ class UsuarioSerializer(serializers.ModelSerializer):
         # otros campos sin cambiar el email.
         user_id = self.instance.IdUsuario if self.instance else None
 
-        # __iexact: Búsqueda case-insensitive en la BD (postgres: ILIKE)
-        if Usuario.objects.filter(Email__iexact=value).exclude(IdUsuario=user_id).exists():
+        miscelanea = getattr(self.instance, 'Miscelanea', None) if self.instance else None
+        request = self.context.get('request')
+        if miscelanea is None:
+            miscelanea = getattr(getattr(request, 'user', None), 'Miscelanea', None)
+
+        query = Usuario.objects.filter(Email__iexact=value, Miscelanea=miscelanea)
+        if miscelanea is None:
+            query = Usuario.objects.filter(Email__iexact=value, Miscelanea__isnull=True)
+        if query.exclude(IdUsuario=user_id).exists():
             raise serializers.ValidationError("Este correo ya está en uso")
 
         return value

@@ -272,7 +272,7 @@ REST_FRAMEWORK = {
     # Cada token es auto-contenido y verificable con la SECRET_KEY.
     # Esto es ideal para APIs consumidas por SPAs (Single Page Applications).
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'usuarios.tenant_auth.TenantJWTAuthentication',
     )
 }
 

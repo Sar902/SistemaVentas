@@ -43,6 +43,7 @@ NAVEGACIÓN DE RELACIONES (get_nombreProducto):
 
 from rest_framework import serializers
 from .models import Venta, DetalleVenta
+from usuarios.tenant import TenantPrimaryKeyRelatedField
 from usuarios.models import Usuario
 from inventario.models import Inventario
 
@@ -56,8 +57,8 @@ class DetalleVentaSerializer(serializers.ModelSerializer):
     sin necesitar una consulta adicional por cada ítem.
     """
     id = serializers.IntegerField(source='IdDetalleVenta', read_only=True)
-    ventaId = serializers.PrimaryKeyRelatedField(source='IdVenta', queryset=Venta.objects.all())
-    inventarioId = serializers.PrimaryKeyRelatedField(source='IdInventario', queryset=Inventario.objects.all())
+    ventaId = TenantPrimaryKeyRelatedField(source='IdVenta', queryset=Venta.objects.all())
+    inventarioId = TenantPrimaryKeyRelatedField(source='IdInventario', queryset=Inventario.objects.all())
     precioVentaUnitario = serializers.DecimalField(source='PrecioVentaUnitario', max_digits=12, decimal_places=2)
     # Campo calculado: Navega Inventario → DetalleEntrada → Producto para obtener el nombre.
     # Solo lectura (read_only implícito en SerializerMethodField).
@@ -116,7 +117,7 @@ class VentaSerializer(serializers.ModelSerializer):
     una actualización directa del campo.
     """
     id = serializers.IntegerField(source='IdVenta', read_only=True)
-    usuarioId = serializers.PrimaryKeyRelatedField(source='IdUsuario', queryset=Usuario.objects.all())
+    usuarioId = TenantPrimaryKeyRelatedField(source='IdUsuario', queryset=Usuario.objects.all())
     usuarioNombre = serializers.CharField(source='IdUsuario.Nombre', read_only=True)
     fecha = serializers.DateTimeField(source='Fecha')
     total = serializers.DecimalField(source='Total', max_digits=12, decimal_places=2)

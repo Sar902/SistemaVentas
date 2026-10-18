@@ -58,6 +58,7 @@ class Venta(models.Model):
     )
 
     IdVenta = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='ventas')
     IdUsuario = models.ForeignKey(Usuario, on_delete=models.RESTRICT, db_column='IdUsuario')
     Fecha = models.DateTimeField(null=False, blank=False)
     Total = models.DecimalField(
@@ -103,6 +104,7 @@ class DetalleVenta(models.Model):
             ya que el precio de venta puede cambiar en el futuro.
     """
     IdDetalleVenta = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='detalles_venta')
     IdVenta = models.ForeignKey(
         Venta,
         on_delete=models.CASCADE,

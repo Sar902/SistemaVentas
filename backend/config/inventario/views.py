@@ -1,3 +1,4 @@
+from usuarios.tenant import TenantScopedViewSet
 """
 Vistas del Inventario — App 'inventario'
 =========================================
@@ -48,7 +49,7 @@ def get_param_flexible(request, key_snake, key_camel):
     return request.query_params.get(key_snake) or request.query_params.get(key_camel)
 
 
-class EntradaInventarioViewSet(AuditoriaMixin, viewsets.ModelViewSet):
+class EntradaInventarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD completo para entradas de inventario (pedidos de compra).
 
@@ -108,7 +109,7 @@ class EntradaInventarioViewSet(AuditoriaMixin, viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class DetalleEntradaInventarioViewSet(viewsets.ModelViewSet):
+class DetalleEntradaInventarioViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD para los detalles (líneas) de una entrada de inventario.
 
@@ -141,7 +142,7 @@ class DetalleEntradaInventarioViewSet(viewsets.ModelViewSet):
 
 
 
-class InventarioViewSet(viewsets.ModelViewSet):
+class InventarioViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD básico para registros individuales de inventario.
 
@@ -155,7 +156,7 @@ class InventarioViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
-class PerdidaViewSet(viewsets.ModelViewSet):
+class PerdidaViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """ViewSet de solo lectura (para admins) del historial de pérdidas."""
     queryset = Perdida.objects.all()
     serializer_class = PerdidaSerializer
@@ -163,7 +164,7 @@ class PerdidaViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
-class DetallePerdidaViewSet(viewsets.ModelViewSet):
+class DetallePerdidaViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """ViewSet para consultar líneas de detalle de pérdidas."""
     queryset = DetallePerdida.objects.all()
     serializer_class = DetallePerdidaSerializer
@@ -171,7 +172,7 @@ class DetallePerdidaViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
-class SolicitudDevolucionViewSet(viewsets.ModelViewSet):
+class SolicitudDevolucionViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """
     CRUD para solicitudes de devolución con protección de estado.
 
@@ -222,7 +223,7 @@ class SolicitudDevolucionViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
 
-class DetalleSolicitudDevolucionViewSet(viewsets.ModelViewSet):
+class DetalleSolicitudDevolucionViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     """ViewSet para líneas de detalle de solicitudes de devolución."""
     queryset = DetalleSolicitudDevolucion.objects.all()
     serializer_class = DetalleSolicitudDevolucionSerializer
@@ -278,9 +279,13 @@ class ProcesarPerdidaView(APIView):
         detalles = request.data.get('detalles', [])
 
         try:
-            usuario = Usuario.objects.get(IdUsuario=usuario_id)
+            usuario = Usuario.objects.get(
+                IdUsuario=usuario_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+            )
             perdida = Perdida.objects.create(
                 IdUsuario=usuario,
+                Miscelanea_id=request.user.Miscelanea_id,
                 TipoPerdida=tipo_perdida,
                 Fecha=fecha,
                 Total=total
@@ -290,10 +295,14 @@ class ProcesarPerdidaView(APIView):
                 precio = d.get('precioCompraUnitario')
                 # select_for_update: Bloquea el registro de inventario hasta que
                 # la transacción termine. Previene condiciones de carrera.
-                inventario = Inventario.objects.select_for_update().get(IdInventario=inv_id)
+                inventario = Inventario.objects.select_for_update().get(
+                    IdInventario=inv_id,
+                    Miscelanea_id=request.user.Miscelanea_id,
+                )
                 DetallePerdida.objects.create(
                     IdPerdida=perdida,
                     IdInventario=inventario,
+                    Miscelanea_id=request.user.Miscelanea_id,
                     PrecioCompraUnitario=precio
                 )
                 # Cambiar el estado de la unidad para que deje de aparecer en el stock
@@ -338,14 +347,21 @@ class ProcesarDevolucionView(APIView):
         detalles = request.data.get('detalles', [])
 
         try:
-            usuario = Usuario.objects.get(IdUsuario=usuario_id)
+            usuario = Usuario.objects.get(
+                IdUsuario=usuario_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+            )
             entrada_id = request.data.get('IdEntradaInventario')
-            entrada = EntradaInventario.objects.get(IdEntradaInventario=entrada_id)
+            entrada = EntradaInventario.objects.get(
+                IdEntradaInventario=entrada_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+            )
 
             # Crear el encabezado de la solicitud
             solicitud = SolicitudDevolucion.objects.create(
                 IdEntradaInventario=entrada,
                 IdUsuario=usuario,
+                Miscelanea_id=request.user.Miscelanea_id,
                 Estado=request.data.get('Estado', 'Pendiente'),
                 Observaciones=request.data.get('Observaciones', ''),
                 Fecha=fecha
@@ -356,10 +372,14 @@ class ProcesarDevolucionView(APIView):
                 inv_id = d.get('inventarioId')
                 precio = d.get('PrecioCompraUnitario')
                 motivo = d.get('MotivoRechazo')
-                inventario = Inventario.objects.get(IdInventario=inv_id)
+                inventario = Inventario.objects.get(
+                    IdInventario=inv_id,
+                    Miscelanea_id=request.user.Miscelanea_id,
+                )
                 DetalleSolicitudDevolucion.objects.create(
                     IdSolicitudDevolucion=solicitud,
                     IdInventario=inventario,
+                    Miscelanea_id=request.user.Miscelanea_id,
                     MotivoRechazo=motivo,
                     PrecioCompraUnitario=precio,
                     EstadoItem=d.get('EstadoItem', 'Pendiente')

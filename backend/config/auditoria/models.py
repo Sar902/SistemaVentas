@@ -89,6 +89,7 @@ class LogAuditoria(models.Model):
     )
 
     IdLog = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='logs')
 
     # SET_NULL: El log sobrevive aunque el usuario sea eliminado
     usuario = models.ForeignKey(

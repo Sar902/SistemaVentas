@@ -110,10 +110,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         from usuarios.models import Usuario
 
         email = attrs.get(self.username_field)  # Campo configurado como 'Email'
+        codigo = attrs.get('codigo')
 
         # ── PASO A: Verificar existencia del usuario ─────────────────────────
         try:
-            usuario = Usuario.objects.get(Email=email)
+            usuario_query = Usuario.objects.filter(Email__iexact=email)
+            if codigo:
+                usuario_query = usuario_query.filter(Miscelanea__Codigo__iexact=codigo)
+            usuario = usuario_query.get()
         except Usuario.DoesNotExist:
             # Mensaje genérico: no revelar si el email existe o no en el sistema.
             raise AuthenticationFailed(
