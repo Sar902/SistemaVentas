@@ -72,12 +72,14 @@ class CrearCodigoAdminView(APIView):
     def post(self, request):
         empleado_id = request.data.get('empleadoId')
         try:
-            duracion = int(request.data.get('duracionMinutos', 60))
+            duracion_horas = int(request.data.get('duracionHoras', 1))
         except (TypeError, ValueError):
-            return Response({'error': 'La duración debe ser un número.'}, status=400)
+            return Response({'error': 'La duración debe ser un número de horas.'}, status=400)
 
-        if not 1 <= duracion <= 480:
-            return Response({'error': 'La duración debe estar entre 1 y 480 minutos.'}, status=400)
+        if not 1 <= duracion_horas <= 24:
+            return Response({'error': 'La duración debe estar entre 1 y 24 horas.'}, status=400)
+
+        duracion = duracion_horas * 60
 
         try:
             empleado = Usuario.objects.get(
@@ -102,7 +104,7 @@ class CrearCodigoAdminView(APIView):
             'codigo': codigo,
             'empleado': empleado.Nombre,
             'expiraCodigoEn': delegacion.CodigoExpiraEn,
-            'duracionMinutos': duracion,
+            'duracionHoras': duracion_horas,
         }, status=201)
 
 

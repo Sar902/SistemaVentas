@@ -28,7 +28,7 @@ export function Ajustes() {
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [empleadoId, setEmpleadoId] = useState("");
-  const [duracionMinutos, setDuracionMinutos] = useState("60");
+  const [duracionHoras, setDuracionHoras] = useState("1");
   const [codigoGenerado, setCodigoGenerado] = useState("");
   const [codigoAdmin, setCodigoAdmin] = useState("");
 
@@ -69,7 +69,7 @@ export function Ajustes() {
     try {
       const { data } = await api.post("/usuarios/delegacion-admin/crear/", {
         empleadoId: Number(empleadoId),
-        duracionMinutos: Number(duracionMinutos),
+        duracionHoras: Number(duracionHoras),
       });
       setCodigoGenerado(data.codigo);
       toast.success("Código generado. Compártelo con el cajero.");
@@ -223,8 +223,10 @@ export function Ajustes() {
               </select>
             </div>
             <div>
-              <Label>Duración (minutos)</Label>
-              <Input type="number" min="1" max="480" value={duracionMinutos} onChange={(event) => setDuracionMinutos(event.target.value)} />
+              <Label>Duración</Label>
+              <select className="w-full h-10 rounded-md border bg-background px-3" value={duracionHoras} onChange={(event) => setDuracionHoras(event.target.value)}>
+                {[1, 2, 4, 8, 12, 24].map((hours) => <option key={hours} value={hours}>{hours} {hours === 1 ? "hora" : "horas"}</option>)}
+              </select>
             </div>
             <Button onClick={generarCodigoAdmin}><KeyRound className="mr-2" size={16} />Generar código</Button>
           </div>
