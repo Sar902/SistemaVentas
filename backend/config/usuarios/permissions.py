@@ -20,6 +20,19 @@ JERARQUÍA DE PERMISOS:
 """
 
 from rest_framework import permissions
+from django.utils import timezone
+from .models import DelegacionAdmin
+
+
+def has_admin_access(user):
+    if getattr(user, 'Rol', None) == 'admin':
+        return True
+    return DelegacionAdmin.objects.filter(
+        Empleado_id=getattr(user, 'IdUsuario', None),
+        Miscelanea_id=getattr(user, 'Miscelanea_id', None),
+        UsadoEn__isnull=False,
+        ConcedidoHasta__gt=timezone.now(),
+    ).exists()
 
 
 class IsAdminRole(permissions.BasePermission):
@@ -48,7 +61,7 @@ class IsAdminRole(permissions.BasePermission):
         return (
             request.user is not None
             and request.user.is_authenticated
-            and getattr(request.user, 'Rol', None) == 'admin'
+            and has_admin_access(request.user)
         )
 
 
@@ -80,7 +93,7 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
         rol = getattr(request.user, 'Rol', None)
 
-        if rol == 'admin':
+        if has_admin_access(request.user):
             return True  # Acceso total a todos los métodos HTTP
 
         # Los vendedores solo pueden hacer peticiones de solo lectura

@@ -108,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         api.get("/usuarios/me/").then(({ data }) => {
+          setUserRole(data.es_admin ? "admin" : decoded.rol ?? null);
           setTenantName(data.miscelanea?.nombre ?? null);
           setTenantLogo(data.miscelanea?.logo ?? null);
         }).catch(() => {

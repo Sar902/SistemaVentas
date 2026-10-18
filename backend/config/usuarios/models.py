@@ -219,3 +219,36 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         # db_table: Nombre explícito de la tabla en PostgreSQL.
         # Sin esto, Django crearía la tabla como 'usuarios_usuario'.
         db_table = 'Usuario'
+
+
+class DelegacionAdmin(models.Model):
+    """One-time code that grants temporary admin access within one tenant."""
+
+    IdDelegacion = models.AutoField(primary_key=True)
+    Miscelanea = models.ForeignKey(
+        Miscelanea,
+        on_delete=models.CASCADE,
+        db_column='IdMiscelanea',
+        related_name='delegaciones_admin',
+    )
+    CreadoPor = models.ForeignKey(
+        Usuario,
+        on_delete=models.RESTRICT,
+        db_column='IdCreadoPor',
+        related_name='delegaciones_creadas',
+    )
+    Empleado = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        db_column='IdEmpleado',
+        related_name='delegaciones_recibidas',
+    )
+    CodigoHash = models.CharField(max_length=128)
+    DuracionMinutos = models.PositiveIntegerField()
+    CodigoExpiraEn = models.DateTimeField()
+    ConcedidoHasta = models.DateTimeField(null=True, blank=True)
+    UsadoEn = models.DateTimeField(null=True, blank=True)
+    CreadoEn = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'DelegacionAdmin'

@@ -5,11 +5,11 @@ import { Label } from "../components/ui/label";
 import { useState, useEffect } from "react";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
-import { Loader2, Save, Eye, EyeOff, Mail, User } from "lucide-react";
+import { Loader2, Save, Eye, EyeOff, Mail, User, KeyRound, ShieldCheck } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export function Ajustes() {
-  const { userId } = useAuth();
+  const { userId, userRole } = useAuth();
 
   // DATOS DEL USUARIO
   const [userData, setUserData] = useState<any>(null);
@@ -26,6 +26,11 @@ export function Ajustes() {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [empleados, setEmpleados] = useState<any[]>([]);
+  const [empleadoId, setEmpleadoId] = useState("");
+  const [duracionMinutos, setDuracionMinutos] = useState("60");
+  const [codigoGenerado, setCodigoGenerado] = useState("");
+  const [codigoAdmin, setCodigoAdmin] = useState("");
 
   // CARGAR DATOS DEL USUARIO
   const fetchUserData = async () => {
@@ -46,6 +51,46 @@ export function Ajustes() {
       fetchUserData();
     }
   }, [userId]);
+
+  useEffect(() => {
+    if (userRole === "admin") {
+      api.get("/usuarios/usuarios/").then(({ data }) => {
+        const lista = Array.isArray(data) ? data : data.results || [];
+        setEmpleados(lista.filter((empleado: any) => empleado.rol === "cajero"));
+      }).catch(() => toast.error("No se pudieron cargar los cajeros."));
+    }
+  }, [userRole]);
+
+  const generarCodigoAdmin = async () => {
+    if (!empleadoId) {
+      toast.warning("Selecciona un cajero.");
+      return;
+    }
+    try {
+      const { data } = await api.post("/usuarios/delegacion-admin/crear/", {
+        empleadoId: Number(empleadoId),
+        duracionMinutos: Number(duracionMinutos),
+      });
+      setCodigoGenerado(data.codigo);
+      toast.success("Código generado. Compártelo con el cajero.");
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const activarCodigoAdmin = async () => {
+    if (!codigoAdmin.trim()) {
+      toast.warning("Ingresa el código.");
+      return;
+    }
+    try {
+      await api.post("/usuarios/delegacion-admin/activar/", { codigo: codigoAdmin });
+      toast.success("Permisos administrativos activados.");
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    }
+  };
 
   // VALIDACIÓN PASSWORD
   const validatePassword = (pwd: string) => {
@@ -163,6 +208,41 @@ export function Ajustes() {
       <h1 className="text-2xl font-bold text-foreground dark:text-white">
         Ajustes
       </h1>
+
+      {userRole === "admin" && (
+        <Card className="p-6 rounded-2xl shadow-md dark:bg-slate-900 dark:border dark:border-slate-800">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <ShieldCheck size={18} /> Delegar permisos administrativos
+          </h3>
+          <div className="grid md:grid-cols-3 gap-4 items-end">
+            <div>
+              <Label>Cajero</Label>
+              <select className="w-full h-10 rounded-md border bg-background px-3" value={empleadoId} onChange={(event) => setEmpleadoId(event.target.value)}>
+                <option value="">Seleccionar cajero</option>
+                {empleados.map((empleado) => <option key={empleado.id} value={empleado.id}>{empleado.nombre}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Duración (minutos)</Label>
+              <Input type="number" min="1" max="480" value={duracionMinutos} onChange={(event) => setDuracionMinutos(event.target.value)} />
+            </div>
+            <Button onClick={generarCodigoAdmin}><KeyRound className="mr-2" size={16} />Generar código</Button>
+          </div>
+          {codigoGenerado && <p className="mt-4 font-mono text-xl tracking-widest">Código: {codigoGenerado}</p>}
+        </Card>
+      )}
+
+      {userRole !== "admin" && (
+        <Card className="p-6 rounded-2xl shadow-md dark:bg-slate-900 dark:border dark:border-slate-800">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <KeyRound size={18} /> Activar permisos administrativos
+          </h3>
+          <div className="flex gap-3">
+            <Input value={codigoAdmin} onChange={(event) => setCodigoAdmin(event.target.value.toUpperCase())} placeholder="Código del administrador" />
+            <Button onClick={activarCodigoAdmin}>Activar</Button>
+          </div>
+        </Card>
+      )}
 
       {/* TARJETA DE DATOS DEL PERFIL */}
       <Card className="p-6 rounded-2xl shadow-md dark:bg-slate-900 dark:border dark:border-slate-800">

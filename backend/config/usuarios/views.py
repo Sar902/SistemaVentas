@@ -25,9 +25,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 import re
+import secrets
+from datetime import timedelta
+from django.contrib.auth.hashers import check_password, make_password
+from django.utils import timezone
 from rest_framework.response import Response
 
-from .models import Usuario
+from .models import DelegacionAdmin, Usuario
 from .serializers import UsuarioSerializer
 from .permissions import IsAdminRole
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
@@ -48,12 +52,83 @@ class CurrentUserView(APIView):
             'id': user.IdUsuario,
             'nombre': user.Nombre,
             'rol': user.Rol,
+            'es_admin': user.Rol == 'admin' or DelegacionAdmin.objects.filter(
+                Empleado=user,
+                Miscelanea=tenant,
+                UsadoEn__isnull=False,
+                ConcedidoHasta__gt=timezone.now(),
+            ).exists(),
             'miscelanea': {
                 'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
                 'codigo': tenant.Codigo if tenant else '',
                 'logo': logo,
             },
         })
+
+
+class CrearCodigoAdminView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request):
+        empleado_id = request.data.get('empleadoId')
+        try:
+            duracion = int(request.data.get('duracionMinutos', 60))
+        except (TypeError, ValueError):
+            return Response({'error': 'La duración debe ser un número.'}, status=400)
+
+        if not 1 <= duracion <= 480:
+            return Response({'error': 'La duración debe estar entre 1 y 480 minutos.'}, status=400)
+
+        try:
+            empleado = Usuario.objects.get(
+                IdUsuario=empleado_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+                Rol='cajero',
+            )
+        except Usuario.DoesNotExist:
+            return Response({'error': 'El empleado no pertenece a esta miscelánea.'}, status=404)
+
+        codigo = secrets.token_urlsafe(6).replace('-', '').replace('_', '').upper()[:8]
+        delegacion = DelegacionAdmin.objects.create(
+            Miscelanea_id=request.user.Miscelanea_id,
+            CreadoPor=request.user,
+            Empleado=empleado,
+            CodigoHash=make_password(codigo),
+            DuracionMinutos=duracion,
+            CodigoExpiraEn=timezone.now() + timedelta(minutes=10),
+        )
+        return Response({
+            'id': delegacion.IdDelegacion,
+            'codigo': codigo,
+            'empleado': empleado.Nombre,
+            'expiraCodigoEn': delegacion.CodigoExpiraEn,
+            'duracionMinutos': duracion,
+        }, status=201)
+
+
+class ActivarCodigoAdminView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        codigo = str(request.data.get('codigo', '')).strip().upper()
+        if not codigo:
+            return Response({'error': 'Debe ingresar un código.'}, status=400)
+
+        delegaciones = DelegacionAdmin.objects.filter(
+            Empleado=request.user,
+            Miscelanea_id=request.user.Miscelanea_id,
+            UsadoEn__isnull=True,
+            CodigoExpiraEn__gt=timezone.now(),
+        )
+        delegacion = next((item for item in delegaciones if check_password(codigo, item.CodigoHash)), None)
+        if not delegacion:
+            return Response({'error': 'Código inválido o expirado.'}, status=400)
+
+        ahora = timezone.now()
+        delegacion.UsadoEn = ahora
+        delegacion.ConcedidoHasta = ahora + timedelta(minutes=delegacion.DuracionMinutos)
+        delegacion.save(update_fields=['UsadoEn', 'ConcedidoHasta'])
+        return Response({'mensaje': 'Permisos administrativos activados.', 'adminHasta': delegacion.ConcedidoHasta})
 
 
 class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):

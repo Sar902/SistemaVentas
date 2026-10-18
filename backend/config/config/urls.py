@@ -26,8 +26,8 @@ DECISIÓN DE DISEÑO — JWT Personalizado:
 
 from django.contrib import admin
 from django.conf import settings
-from django.conf.urls.static import static
 from django.urls import path, include
+from django.views.static import serve
 from rest_framework_simplejwt.views import TokenRefreshView
 # CustomTokenObtainPairView añade 'rol' y 'nombre' al payload del JWT,
 # eliminando la necesidad de una petición adicional de /api/me/ al iniciar sesión.
@@ -58,4 +58,6 @@ urlpatterns = [
     path('api/auditoria/', include('auditoria.urls')),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += [
+    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+]
