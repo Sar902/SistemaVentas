@@ -27,6 +27,7 @@ class Miscelanea(models.Model):
     IdMiscelanea = models.AutoField(primary_key=True)
     Nombre = models.CharField(max_length=255, null=False, blank=False)
     Codigo = models.CharField(max_length=50, unique=True, null=False, blank=False)
+    Logo = models.URLField(null=True, blank=True)
     Estado = models.CharField(max_length=10, default='Activo')
 
     class Meta:

@@ -74,6 +74,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # con jwtDecode(token).rol y jwtDecode(token).nombre
         token['rol'] = user.Rol
         token['nombre'] = user.Nombre
+        token['miscelanea_nombre'] = getattr(user.Miscelanea, 'Nombre', 'Sistema de Ventas')
+        token['miscelanea_codigo'] = getattr(user.Miscelanea, 'Codigo', '')
+        token['miscelanea_logo'] = getattr(user.Miscelanea, 'Logo', None)
 
         return token
 

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Página de Reportes Gerenciales — "La Bendición de Dios"
+ * @fileoverview Página de Reportes Gerenciales por miscelánea.
  *
  * Página más compleja del sistema. Centraliza 11 tipos de reportes independientes
  * que se pueden consultar, imprimir en PDF y exportar a Excel.
@@ -50,12 +50,14 @@ import api from "../api/axiosInstance";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import { useAuth } from "../contexts/AuthContext";
 
 
 
 
 
 export function Reportes() {
+  const { tenantName } = useAuth();
   // ── Datos maestros cargados al montar (listas para los selects) ─────────────
   const [productosLista, setProductosLista] = useState<any[]>([]);
   const [proveedoresLista, setProveedoresLista] = useState<any[]>([]);
@@ -459,7 +461,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     // Título Principal
     sheet.mergeCells("A1:C1");
     const title = sheet.getCell("A1");
-    title.value = "MISCELÁNEA BENDICIÓN DE DIOS - REPORTE";
+    title.value = `${(tenantName || "Miscelánea").toUpperCase()} - REPORTE`;
     title.font = { name: "Arial Black", size: 14, color: { argb: "FFFFFFFF" } };
     title.fill = {
       type: "pattern",
@@ -805,7 +807,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(
       new Blob([buffer]),
-      `Reporte_Miscelanea_BendicionDeDios_${new Date().getTime()}.xlsx`,
+      `Reporte_${(tenantName || "Miscelanea").replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`,
     );
   };
 
@@ -886,7 +888,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
             Reportes de la Miscelánea
           </h1>
           <p className="text-xl text-muted-foreground font-medium italic mt-1">
-            "Bendición de Dios"
+            tenantName || "Miscelánea"
           </p>
         </div>
       )}
@@ -897,7 +899,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
           {/* Membrete Centrado */}
           <div className="text-center mb-6">
             <h1 className="text-3xl font-serif font-black text-blue-900 uppercase tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-              MISCELÁNEA BENDICIÓN DE DIOS
+              {(tenantName || "Miscelánea").toUpperCase()}
             </h1>
             <p className="text-[10px] text-slate-500 tracking-widest uppercase mt-1">
               Managua, Nicaragua • Tel: +505 8888-8888 • Documentación de Inventario y Ventas

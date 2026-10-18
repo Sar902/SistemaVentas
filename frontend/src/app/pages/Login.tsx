@@ -107,7 +107,7 @@ export function Login() {
         <div className="bg-green-600 p-4 rounded-full mb-4 shadow-lg text-white">
           <Store className="size-10" />
         </div>
-        <h1 className="text-3xl font-bold text-foreground tracking-tight">Bendición de Dios</h1>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight">Sistema de Ventas</h1>
         <p className="text-muted-foreground font-medium">Sistema de Ventas e Inventario</p>
       </div>
 
@@ -136,7 +136,7 @@ export function Login() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
                 <Input 
                   type="email" 
-                  placeholder="admin@bendiciondedios.com" 
+                  placeholder="admin@miscelanea.com"
                   className="pl-10 h-12"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

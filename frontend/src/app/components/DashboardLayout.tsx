@@ -62,7 +62,7 @@ import { ThemeToggle } from "./ThemeToggle";
  */
 export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { logout, userRole, userName } = useAuth();
+  const { logout, userRole, userName, tenantName, tenantLogo } = useAuth();
 
   // ── Definición del menú según rol ─────────────────────────────────────────
   /**
@@ -114,21 +114,20 @@ export function DashboardLayout() {
         <div className="flex items-center gap-3">
           <div className="size-10 flex items-center justify-center">
             {/* Logo modo claro */}
-            <img
-              src="/logo_claro.jpeg"
-              alt="Logo Bendición de Dios"
-              className="size-10 object-contain dark:hidden"
-            />
+            {tenantLogo ? (
+              <img
+                src={tenantLogo}
+                alt={`Logo de ${tenantName || "la miscelánea"}`}
+                className="size-10 object-contain"
+              />
+            ) : (
+              <Store className="size-8 text-muted-foreground" />
+            )}
             {/* Logo modo oscuro */}
-            <img
-              src="/logo_oscuro.jpeg"
-              alt="Logo Bendición de Dios"
-              className="size-10 object-contain hidden dark:block"
-            />
           </div>
           <div>
             <h1 className="font-bold text-lg bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
-              Bendición de Dios
+              {tenantName || "Sistema de Ventas"}
             </h1>
             <p className="text-xs text-muted-foreground">Sistema de Ventas</p>
           </div>

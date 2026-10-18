@@ -63,7 +63,6 @@ import autoTable from "jspdf-autotable";
  * @param isLoading - True mientras la petición de anulación está en vuelo.
  */
 function ConfirmAnularModal({
-  ventaId,
   onConfirm,
   onCancel,
   isLoading,
@@ -75,7 +74,6 @@ function ConfirmAnularModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onCancel}
@@ -146,7 +144,7 @@ function ConfirmAnularModal({
  * Función utilitaria para generar y descargar el PDF de una venta (recibo).
  * Reutilizada tanto al terminar una venta como desde el historial.
  */
-const downloadSalePDF = (venta: any) => {
+const downloadSalePDF = (venta: any, tenantName?: string) => {
   const doc = new jsPDF({
     unit: 'mm',
     format: [80, 180] // Formato ticket estándar 80mm
@@ -161,7 +159,7 @@ const downloadSalePDF = (venta: any) => {
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 41, 59); // slate-800
-  doc.text("BENDICIÓN DE DIOS", center, y, { align: "center" });
+  doc.text((tenantName || "MISCELÁNEA").toUpperCase(), center, y, { align: "center" });
 
   y += 5;
   doc.setFontSize(8);
@@ -450,7 +448,7 @@ function ReceiptModal({
 
           <Button
             className="w-full h-16 rounded-[1.25rem] font-black gap-3 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-700 dark:hover:bg-slate-600 shadow-xl shadow-slate-200 transition-all active:scale-95 text-base"
-            onClick={() => downloadSalePDF(sale)}
+            onClick={() => downloadSalePDF(sale, tenantName || undefined)}
           >
             <Download className="size-6" />
             DESCARGAR RECIBO
@@ -461,7 +459,7 @@ function ReceiptModal({
       {/* Ticket Térmico Oculto */}
       <div id="printable-receipt" className="hidden print:block text-foreground font-mono text-[11px] w-[80mm] bg-card p-4">
         <div className="text-center mb-4">
-          <h1 className="text-lg font-black uppercase tracking-tighter">BENDICIÓN DE DIOS</h1>
+          <h1 className="text-lg font-black uppercase tracking-tighter">{tenantName || "MISCELÁNEA"}</h1>
           <div className="text-[10px] space-y-0.5 text-muted-foreground italic">
             <p>De lo recibido de tu mano, te damos.</p>
             <p>Managua, Nicaragua</p>
@@ -626,7 +624,7 @@ function VentaRow({
             className="text-blue-500 hover:bg-blue-50 dark:bg-blue-900/30 hover:text-blue-700 dark:text-blue-400 gap-1.5 font-semibold"
             onClick={(e) => {
               e.stopPropagation();
-              downloadSalePDF(venta);
+              downloadSalePDF(venta, tenantName || undefined);
             }}
           >
             <Download className="size-4" />
@@ -699,7 +697,7 @@ export function Ventas() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Auth
-  const { userId, userRole } = useAuth();
+  const { userId, userRole, tenantName } = useAuth();
   const isAdmin = userRole === "admin";
 
   // Historial

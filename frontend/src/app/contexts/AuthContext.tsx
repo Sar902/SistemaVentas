@@ -44,6 +44,8 @@ interface AuthContextType {
   userId: number | null;
   userRole: string | null;
   userName: string | null;
+  tenantName: string | null;
+  tenantLogo: string | null;
   login: (access: string, refresh: string) => void;
   logout: () => void;
 }
@@ -65,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [tenantName, setTenantName] = useState<string | null>(null);
+  const [tenantLogo, setTenantLogo] = useState<string | null>(null);
 
   /**
    * Efecto de decodificación del JWT.
@@ -92,6 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserId(decoded.user_id ?? null);
         setUserRole(decoded.rol ?? null);
         setUserName(decoded.nombre ?? null);
+        setTenantName(decoded.miscelanea_nombre ?? null);
+        setTenantLogo(decoded.miscelanea_logo ?? null);
       } catch (e) {
         // Token inválido o malformado → limpiar sesión automáticamente
         logout();
@@ -101,6 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserId(null);
       setUserRole(null);
       setUserName(null);
+      setTenantName(null);
+      setTenantLogo(null);
     }
   }, [token]); // Solo re-ejecutar cuando el token cambie
 
@@ -134,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userId, userRole, userName, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
