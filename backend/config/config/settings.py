@@ -64,6 +64,11 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 # el dominio real del servidor (ej: 'mi-tienda.com').
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,.railway.app').split(',')
 
+# Railway terminates TLS before forwarding requests to Django. This makes
+# request.build_absolute_uri() generate https:// URLs for uploaded media.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # APLICACIONES INSTALADAS
