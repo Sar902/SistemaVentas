@@ -28,6 +28,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
+import api from "../api/axiosInstance";
 
 /**
  * Forma del contexto de autenticación expuesto a los componentes.
@@ -105,6 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? `${backendBase}${logoPath}`
             : logoPath
         );
+
+        api.get("/usuarios/me/").then(({ data }) => {
+          setTenantName(data.miscelanea?.nombre ?? null);
+          setTenantLogo(data.miscelanea?.logo ?? null);
+        }).catch(() => {
+          // JWT claims remain as a fallback if the branding request fails.
+        });
       } catch (e) {
         // Token inválido o malformado → limpiar sesión automáticamente
         logout();

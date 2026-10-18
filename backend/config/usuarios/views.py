@@ -23,6 +23,7 @@ ENDPOINTS:
 from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 import re
 from rest_framework.response import Response
 
@@ -31,6 +32,28 @@ from .serializers import UsuarioSerializer
 from .permissions import IsAdminRole
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from .tenant import TenantScopedViewSet
+
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        tenant = user.Miscelanea
+        logo = None
+        if tenant and tenant.Logo:
+            logo = request.build_absolute_uri(tenant.Logo.url)
+
+        return Response({
+            'id': user.IdUsuario,
+            'nombre': user.Nombre,
+            'rol': user.Rol,
+            'miscelanea': {
+                'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
+                'codigo': tenant.Codigo if tenant else '',
+                'logo': logo,
+            },
+        })
 
 
 class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):

@@ -20,7 +20,7 @@ POR QUÉ UN ENDPOINT SEPARADO PARA CAMBIO DE EMAIL:
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UsuarioViewSet, cambiar_email_directo
+from .views import CurrentUserView, UsuarioViewSet, cambiar_email_directo
 
 router = DefaultRouter()
 # Prefijo 'usuarios': genera rutas como /api/usuarios/usuarios/ (doble)
@@ -29,6 +29,7 @@ router = DefaultRouter()
 router.register(r'usuarios', UsuarioViewSet)
 
 urlpatterns = [
+    path('me/', CurrentUserView.as_view()),
     # CRUD estándar (list, create, retrieve, update, destroy)
     path('', include(router.urls)),
     # Endpoint de emergencia para corrección de email por administrador
