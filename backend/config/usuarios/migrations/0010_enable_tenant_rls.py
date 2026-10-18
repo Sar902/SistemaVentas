@@ -17,7 +17,7 @@ TENANT_TABLES = [
 ]
 
 
-def enable_rls(schema_editor):
+def enable_rls(apps, schema_editor):
     for table in TENANT_TABLES:
         policy = f'tenant_isolation_{table}'
         schema_editor.execute(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY')
@@ -29,7 +29,7 @@ def enable_rls(schema_editor):
         )
 
 
-def disable_rls(schema_editor):
+def disable_rls(apps, schema_editor):
     for table in reversed(TENANT_TABLES):
         policy = f'tenant_isolation_{table}'
         schema_editor.execute(f'DROP POLICY IF EXISTS "{policy}" ON "{table}"')
