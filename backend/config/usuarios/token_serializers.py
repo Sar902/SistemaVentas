@@ -76,7 +76,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['nombre'] = user.Nombre
         token['miscelanea_nombre'] = getattr(user.Miscelanea, 'Nombre', 'Sistema de Ventas')
         token['miscelanea_codigo'] = getattr(user.Miscelanea, 'Codigo', '')
-        token['miscelanea_logo'] = getattr(user.Miscelanea, 'Logo', None)
+        logo = getattr(user.Miscelanea, 'Logo', None)
+        token['miscelanea_logo'] = logo.url if logo else None
 
         return token
 

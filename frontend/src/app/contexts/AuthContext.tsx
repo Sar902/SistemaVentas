@@ -97,7 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserRole(decoded.rol ?? null);
         setUserName(decoded.nombre ?? null);
         setTenantName(decoded.miscelanea_nombre ?? null);
-        setTenantLogo(decoded.miscelanea_logo ?? null);
+        const logoPath = decoded.miscelanea_logo ?? null;
+        const apiBase = import.meta.env.VITE_API_URL || "/api";
+        const backendBase = apiBase.replace(/\/api\/?$/, "");
+        setTenantLogo(
+          logoPath && !logoPath.startsWith("http")
+            ? `${backendBase}${logoPath}`
+            : logoPath
+        );
       } catch (e) {
         // Token inválido o malformado → limpiar sesión automáticamente
         logout();
