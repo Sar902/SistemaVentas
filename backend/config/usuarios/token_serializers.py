@@ -28,7 +28,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import serializers, status
 from django.utils import timezone
 from datetime import timedelta
 from math import ceil
@@ -42,6 +42,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     autenticación estándar (verificación de credenciales, generación de
     access y refresh token) y solo sobreescribe la construcción del payload.
     """
+
+    codigo = serializers.CharField(write_only=True, required=True)
 
     @classmethod
     def get_token(cls, user):
@@ -101,27 +103,28 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             usamos get_token() directamente una vez que NOSOTROS validamos todo.
 
         Args:
-            attrs (dict): Credenciales del request {'Email': ..., 'password': ...}.
+            attrs (dict): Credenciales del request.
 
         Returns:
-            dict: {'refresh': str, 'access': str} con los tokens JWT firmados.
+            dict: Par de tokens JWT.
 
         Raises:
-            AuthenticationFailed: En cualquier paso A–D si la validación falla.
+            AuthenticationFailed: Si las credenciales o el tenant no coinciden.
         """
-        # Import local obligatorio: evita circular import al arranque de Django
-        # (usuarios.token_serializers → usuarios.models → al inicializarse)
         from usuarios.models import Usuario
 
         email = attrs.get(self.username_field)  # Campo configurado como 'Email'
-        codigo = attrs.get('codigo')
+        codigo = attrs.get('codigo', '').strip().upper()
+
+        if not codigo:
+            raise AuthenticationFailed('El código de miscelánea es obligatorio.')
 
         # ── PASO A: Verificar existencia del usuario ─────────────────────────
         try:
-            usuario_query = Usuario.objects.filter(Email__iexact=email)
-            if codigo:
-                usuario_query = usuario_query.filter(Miscelanea__Codigo__iexact=codigo)
-            usuario = usuario_query.get()
+            usuario = Usuario.objects.get(
+                Email__iexact=email,
+                Miscelanea__Codigo__iexact=codigo,
+            )
         except Usuario.DoesNotExist:
             # Mensaje genérico: no revelar si el email existe o no en el sistema.
             raise AuthenticationFailed(
@@ -140,8 +143,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # ── PASO C: Verificar si hay un bloqueo temporal activo ──────────────
         ahora = timezone.now()
         if usuario.bloqueado_hasta and ahora < usuario.bloqueado_hasta:
-            # Calcular segundos restantes redondeando hacia arriba para dar
-            # el tiempo más generoso al usuario (no decir 0s cuando quedan 0.1s).
             segundos_restantes = ceil(
                 (usuario.bloqueado_hasta - ahora).total_seconds()
             )
