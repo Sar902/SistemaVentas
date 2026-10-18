@@ -301,7 +301,11 @@ class DashboardStatsView(APIView):
         low_stock_qs = Producto.objects.filter(Miscelanea_id=tenant_id).annotate(
             stock=Count(
                 'detalleentradainventario__inventarios',
-                filter=Q(detalleentradainventario__inventarios__Estado='Disponible')
+                filter=Q(
+                    detalleentradainventario__Miscelanea_id=tenant_id,
+                    detalleentradainventario__inventarios__Miscelanea_id=tenant_id,
+                    detalleentradainventario__inventarios__Estado='Disponible',
+                )
             )
         ).filter(stock__lte=20, stock__gte=10).order_by('stock')[:5]
 
@@ -313,7 +317,9 @@ class DashboardStatsView(APIView):
         } for p in low_stock_qs]
 
         # ── 5 ventas más recientes ─────────────────────────────────────────
-        recent_sales_qs = Venta.objects.order_by('-Fecha')[:5]
+        recent_sales_qs = Venta.objects.filter(
+            Miscelanea_id=tenant_id
+        ).order_by('-Fecha')[:5]
         recent_sales = [{
             "id": v.IdVenta,
             "time": v.Fecha.strftime("%I:%M %p"),
@@ -429,10 +435,19 @@ class ReportePivotVentasView(APIView):
                 JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
                 WHERE EXTRACT(YEAR FROM v."Fecha") = %s
                   AND p."IdProducto" = %s
+                                    AND p."IdMiscelanea" = %s
+                                    AND dei."IdMiscelanea" = %s
+                                    AND i."IdMiscelanea" = %s
+                                    AND dv."IdMiscelanea" = %s
+                                    AND v."IdMiscelanea" = %s
                 GROUP BY p."Nombre"
             """
             with connection.cursor() as cursor:
-                cursor.execute(query, [int(anio), int(prod_id)])
+                tenant_id = request.user.Miscelanea_id
+                cursor.execute(query, [
+                    int(anio), int(prod_id),
+                    tenant_id, tenant_id, tenant_id, tenant_id, tenant_id,
+                ])
                 columns = [col[0] for col in cursor.description]
                 row = cursor.fetchone()
 
