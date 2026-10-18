@@ -72,7 +72,6 @@ export function DashboardLayout() {
   const commonItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
     { icon: ShoppingCart, label: "Ventas", path: "/ventas" },
-    { icon: Settings, label: "Ajustes", path: "/ajustes" },
   ];
 
   /**
@@ -87,6 +86,7 @@ export function DashboardLayout() {
     { icon: BarChart3, label: "Reportes", path: "/reportes" },
     { icon: ShieldCheck, label: "Auditoría", path: "/auditoria" },
     { icon: Users, label: "Usuarios", path: "/usuarios" },
+    { icon: Settings, label: "Ajustes", path: "/ajustes" },
     { icon: BookOpen, label: "Guía Usuario", path: "/guia-usuario" },
   ];
 
@@ -95,8 +95,9 @@ export function DashboardLayout() {
    * El spread operator (...) combina los arrays en orden: primero los comunes,
    * luego los exclusivos de admin.
    */
-  const menuItems =
-    userRole === "admin" ? [...commonItems, ...adminItems] : commonItems;
+  const menuItems = userRole === "admin"
+    ? [...commonItems, ...adminItems]
+    : [...commonItems, { icon: Settings, label: "Ajustes", path: "/ajustes" }];
 
   /**
    * Subcomponente interno del contenido del sidebar.

@@ -56,7 +56,7 @@ export function Ajustes() {
     if (userRole === "admin") {
       api.get("/usuarios/usuarios/").then(({ data }) => {
         const lista = Array.isArray(data) ? data : data.results || [];
-        setEmpleados(lista.filter((empleado: any) => empleado.rol === "cajero"));
+        setEmpleados(lista.filter((empleado: any) => ["cajero", "vendedor"].includes(empleado.rol)));
       }).catch(() => toast.error("No se pudieron cargar los cajeros."));
     }
   }, [userRole]);
