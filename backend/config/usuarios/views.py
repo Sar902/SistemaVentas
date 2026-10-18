@@ -33,7 +33,7 @@ from rest_framework.response import Response
 
 from .models import DelegacionAdmin, Usuario
 from .serializers import UsuarioSerializer
-from .permissions import IsAdminRole
+from .permissions import CanManageUserProfile, IsAdminRole, has_admin_access
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from .tenant import TenantScopedViewSet
 
@@ -147,8 +147,14 @@ class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet)
     # ordering por IdUsuario garantiza paginación estable (sin UnorderedObjectListWarning)
     queryset = Usuario.objects.all().order_by('IdUsuario')
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAdminRole]
+    permission_classes = [CanManageUserProfile]
     MODULO_AUDITORIA = 'USUARIOS'
+
+    def perform_update(self, serializer):
+        if not has_admin_access(self.request.user):
+            for field in ('Rol', 'Estado', 'Miscelanea', 'is_staff', 'is_superuser'):
+                serializer.validated_data.pop(field, None)
+        serializer.save()
 
 
 @api_view(['PATCH'])

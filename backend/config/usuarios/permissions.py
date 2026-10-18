@@ -65,6 +65,18 @@ class IsAdminRole(permissions.BasePermission):
         )
 
 
+class CanManageUserProfile(permissions.BasePermission):
+    """Admins manage tenant users; other users may manage only themselves."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if has_admin_access(request.user):
+            return True
+        user_id = view.kwargs.get('pk')
+        return user_id is not None and str(user_id) == str(request.user.IdUsuario) and request.method in ('GET', 'PATCH', 'PUT')
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     """
     Permiso mixto para endpoints donde vendedores solo consultan, pero no modifican.
