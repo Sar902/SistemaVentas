@@ -7,7 +7,7 @@
  * Ver ProtectedRoute.tsx para la documentación completa del patrón Route Guard.
  */
 
-import { Outlet, Navigate } from "react-router";
+import { Outlet, Navigate, useLocation } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -23,7 +23,8 @@ import { toast } from "sonner";
  * /devoluciones, /ajustes, /guia-usuario.
  */
 export function AdminRoute() {
-  const { token, userRole } = useAuth();
+  const { token, userRole, delegatedModules } = useAuth();
+  const location = useLocation();
 
   // Primera verificación: existencia de sesión
   if (!token) {
@@ -31,7 +32,13 @@ export function AdminRoute() {
   }
 
   // Segunda verificación: privilegios de administrador
-  if (userRole !== "admin") {
+  const moduleByPath: Record<string, string> = {
+    "/usuarios": "USUARIOS",
+    "/reportes": "REPORTES",
+    "/auditoria": "AUDITORIA",
+  };
+  const requiredModule = moduleByPath[location.pathname];
+  if (userRole !== "admin" && (!requiredModule || !delegatedModules.includes(requiredModule))) {
     // toast.error se dispara una vez gracias al ciclo de renderizado de React.
     // Al redirigir inmediatamente con Navigate, el componente se desmonta
     // antes de que pueda renderizar de nuevo, evitando toasts duplicados.

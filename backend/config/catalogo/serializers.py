@@ -69,44 +69,24 @@ class CategoriaSerializer(serializers.ModelSerializer):
         return obj.producto_set.count()
 
     def validate_name(self, value):
-        """
-        Normaliza y verifica la unicidad del nombre de la categoría.
-
-        Pasos:
-          1. Limpia espacios en blanco al inicio y final del string.
-          2. Busca en BD una categoría con el mismo nombre, ignorando
-             diferencias de mayúsculas/minúsculas (__iexact).
-          3. En actualizaciones (PUT/PATCH), excluye la propia instancia
-             de la búsqueda para no generar un falso positivo al guardar
-             sin cambiar el nombre.
-
-        DRF ejecuta este método automáticamente antes de .is_valid() porque
-        el campo se llama 'name' (validate_<field_name>).
-
-        Args:
-            value (str): Valor del campo 'name' recibido desde el request.
-
-        Returns:
-            str: Nombre limpio y validado.
-
-        Raises:
-            serializers.ValidationError: Si ya existe otra categoría con ese nombre.
-        """
-        # Paso 1 — Normalizar espacios para evitar duplicados como "Lácteos " vs "Lácteos"
         nombre_limpio = value.strip()
+        request = self.context.get('request')
+        miscelanea = getattr(self.instance, 'Miscelanea', None) if self.instance else None
+        if miscelanea is None and request:
+            miscelanea = getattr(getattr(request, 'user', None), 'Miscelanea', None)
 
-        # Paso 2 — Construir el queryset base de búsqueda por nombre exacto (case-insensitive)
         qs = Categoria.objects.filter(Nombre__iexact=nombre_limpio)
+        if miscelanea is not None:
+            qs = qs.filter(Miscelanea=miscelanea)
+        elif request and getattr(getattr(request, 'user', None), 'Miscelanea_id', None):
+            qs = qs.filter(Miscelanea_id=request.user.Miscelanea_id)
 
-        # Paso 3 — Excluir la instancia actual en operaciones de actualización.
-        # self.instance es None en POST (creación) y la instancia existente en PUT/PATCH.
         if self.instance is not None:
             qs = qs.exclude(pk=self.instance.pk)
 
         if qs.exists():
             raise serializers.ValidationError(
-                f'Ya existe una categoría con el nombre "{nombre_limpio}". '
-                f'Los nombres de categoría deben ser únicos.'
+                f'Ya existe una categoría con el nombre "{nombre_limpio}" en esta miscelánea.'
             )
 
         return nombre_limpio
@@ -121,7 +101,7 @@ class ProveedorSerializer(serializers.ModelSerializer):
     """
 
     id = serializers.IntegerField(source='IdProveedor', read_only=True)
-    name = serializers.CharField(source='Nombre')
+    name = serializers.CharField(source='Nombre', validators=[])
     contact = serializers.CharField(source='Contacto', required=False, allow_null=True)
     status = serializers.CharField(source='Estado', required=False)
     # Pedidos en los últimos 30 días: Indicador de frecuencia de compra
@@ -133,6 +113,29 @@ class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedor
         fields = ['id', 'name', 'contact', 'status', 'pedidos_recientes', 'activo', 'tiene_productos']
+
+    def validate_name(self, value):
+        nombre_limpio = value.strip()
+        request = self.context.get('request')
+        miscelanea = getattr(self.instance, 'Miscelanea', None) if self.instance else None
+        if miscelanea is None and request:
+            miscelanea = getattr(getattr(request, 'user', None), 'Miscelanea', None)
+
+        qs = Proveedor.objects.filter(Nombre__iexact=nombre_limpio)
+        if miscelanea is not None:
+            qs = qs.filter(Miscelanea=miscelanea)
+        elif request and getattr(getattr(request, 'user', None), 'Miscelanea_id', None):
+            qs = qs.filter(Miscelanea_id=request.user.Miscelanea_id)
+
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                f'Ya existe un proveedor con el nombre "{nombre_limpio}" en esta miscelánea.'
+            )
+
+        return nombre_limpio
 
     def get_pedidos_recientes(self, obj):
         """
@@ -182,7 +185,7 @@ class ProductoSerializer(serializers.ModelSerializer):
     """
 
     id = serializers.IntegerField(source='IdProducto', read_only=True)
-    name = serializers.CharField(source='Nombre')
+    name = serializers.CharField(source='Nombre', validators=[])
     # PrimaryKeyRelatedField: Acepta un ID entero de Categoria en el POST/PUT
     # y lo convierte automáticamente en la instancia del objeto de la BD.
     categoryId = TenantPrimaryKeyRelatedField(source='IdCategoria', queryset=Categoria.objects.all())
@@ -197,6 +200,29 @@ class ProductoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Producto
         fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion', 'imagen']
+
+    def validate_name(self, value):
+        nombre_limpio = value.strip()
+        request = self.context.get('request')
+        miscelanea = getattr(self.instance, 'Miscelanea', None) if self.instance else None
+        if miscelanea is None and request:
+            miscelanea = getattr(getattr(request, 'user', None), 'Miscelanea', None)
+
+        qs = Producto.objects.filter(Nombre__iexact=nombre_limpio)
+        if miscelanea is not None:
+            qs = qs.filter(Miscelanea=miscelanea)
+        elif request and getattr(getattr(request, 'user', None), 'Miscelanea_id', None):
+            qs = qs.filter(Miscelanea_id=request.user.Miscelanea_id)
+
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        if qs.exists():
+            raise serializers.ValidationError(
+                f'Ya existe un producto con el nombre "{nombre_limpio}" en esta miscelánea.'
+            )
+
+        return nombre_limpio
 
     def get_stock(self, obj):
         """

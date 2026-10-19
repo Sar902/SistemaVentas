@@ -160,6 +160,18 @@ class ProcesarVentaView(APIView):
                 # Marcar como vendida para que deje de aparecer en el stock disponible
                 inventario.Estado = "Vendido"
                 inventario.save()
+            registrar_evento_manual(
+                request=request,
+                accion='PROCESAR',
+                modulo='VENTAS',
+                descripcion=f'Venta #{venta.IdVenta} procesada por {request.user.Nombre}.',
+                datos_nuevos={
+                    'id_venta': venta.IdVenta,
+                    'usuario_id': usuario.IdUsuario,
+                    'total': str(venta.Total),
+                    'cantidad_detalles': len(detalles),
+                },
+            )
             return Response({
                 "message": "Venta exitosa",
                 "id": venta.IdVenta,

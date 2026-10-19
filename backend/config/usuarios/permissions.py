@@ -24,15 +24,45 @@ from django.utils import timezone
 from .models import DelegacionAdmin
 
 
-def has_admin_access(user):
-    if getattr(user, 'Rol', None) == 'admin':
-        return True
+def _delegacion_activa(user):
     return DelegacionAdmin.objects.filter(
         Empleado_id=getattr(user, 'IdUsuario', None),
         Miscelanea_id=getattr(user, 'Miscelanea_id', None),
         UsadoEn__isnull=False,
+        Revocado=False,
         ConcedidoHasta__gt=timezone.now(),
-    ).exists()
+    )
+
+
+def has_module_access(user, modulo):
+    if getattr(user, 'Rol', None) == 'admin':
+        return True
+    if not modulo:
+        return False
+    return any(modulo in (delegacion.Modulos or []) for delegacion in _delegacion_activa(user))
+
+
+def has_admin_access(user):
+    return has_module_access(user, 'SISTEMA') or _delegacion_activa(user).exists()
+
+
+def module_for_view(view):
+    """Resolve the business module required by a view for delegated admins."""
+    explicit = getattr(view, 'MODULO_PERMISO', None)
+    if explicit:
+        return explicit
+    name = view.__class__.__name__.lower()
+    if 'auditoria' in name or name in ('estadobdview', 'sesionesactivasview'):
+        return 'AUDITORIA'
+    if 'usuario' in name or 'branding' in name:
+        return 'USUARIOS'
+    if any(word in name for word in ('inventario', 'perdida', 'compras', 'devolucion', 'stock')):
+        return 'INVENTARIO' if 'inventario' in name or 'compras' in name else (
+            'PERDIDAS' if 'perdida' in name else 'DEVOLUCIONES'
+        )
+    if 'reporte' in name or 'dashboard' in name:
+        return 'REPORTES'
+    return getattr(view, 'MODULO_AUDITORIA', 'SISTEMA')
 
 
 class IsAdminRole(permissions.BasePermission):
@@ -61,7 +91,7 @@ class IsAdminRole(permissions.BasePermission):
         return (
             request.user is not None
             and request.user.is_authenticated
-            and has_admin_access(request.user)
+            and has_module_access(request.user, module_for_view(view))
         )
 
 
@@ -71,7 +101,7 @@ class CanManageUserProfile(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        if has_admin_access(request.user):
+        if has_module_access(request.user, 'USUARIOS'):
             return True
         user_id = view.kwargs.get('pk')
         return user_id is not None and str(user_id) == str(request.user.IdUsuario) and request.method in ('GET', 'PATCH', 'PUT')
@@ -105,7 +135,7 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
         rol = getattr(request.user, 'Rol', None)
 
-        if has_admin_access(request.user):
+        if has_module_access(request.user, module_for_view(view)):
             return True  # Acceso total a todos los métodos HTTP
 
         # Los vendedores solo pueden hacer peticiones de solo lectura
@@ -140,4 +170,7 @@ class CanProcessSale(permissions.BasePermission):
 
         # Uso de `in` para verificar pertenencia al conjunto de roles autorizados.
         # Es más limpio y extensible que dos comparaciones == separadas.
-        return getattr(request.user, 'Rol', None) in ('admin', 'cajero', 'vendedor')
+        return (
+            getattr(request.user, 'Rol', None) in ('admin', 'cajero', 'vendedor')
+            and has_module_access(request.user, 'VENTAS')
+        )

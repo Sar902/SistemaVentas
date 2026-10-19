@@ -48,6 +48,7 @@ interface AuthContextType {
   tenantName: string | null;
   tenantLogo: string | null;
   tenantLogoOscuro: string | null;
+  delegatedModules: string[];
   login: (access: string, refresh: string) => void;
   logout: () => void;
 }
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenantName, setTenantName] = useState<string | null>(null);
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [tenantLogoOscuro, setTenantLogoOscuro] = useState<string | null>(null);
+  const [delegatedModules, setDelegatedModules] = useState<string[]>([]);
 
   /**
    * Efecto de decodificación del JWT.
@@ -115,7 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTenantLogoOscuro(formatLogoUrl(logoOscuroPath));
 
         api.get("/usuarios/me/").then(({ data }) => {
-          setUserRole(data.es_admin ? "admin" : decoded.rol ?? null);
+          setUserRole(decoded.rol ?? null);
+          setDelegatedModules(data.modulos_delegados ?? []);
           setTenantName(data.miscelanea?.nombre ?? null);
           setTenantLogo(formatLogoUrl(data.miscelanea?.logo ?? data.miscelanea?.logo_claro ?? null));
           setTenantLogoOscuro(formatLogoUrl(data.miscelanea?.logo_oscuro ?? null));
@@ -134,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTenantName(null);
       setTenantLogo(null);
       setTenantLogoOscuro(null);
+      setDelegatedModules([]);
     }
   }, [token]); // Solo re-ejecutar cuando el token cambie
 
@@ -167,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, delegatedModules, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

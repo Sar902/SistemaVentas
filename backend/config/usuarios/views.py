@@ -33,7 +33,7 @@ from rest_framework.response import Response
 
 from .models import DelegacionAdmin, Usuario
 from .serializers import UsuarioSerializer
-from .permissions import CanManageUserProfile, IsAdminRole, has_admin_access
+from .permissions import CanManageUserProfile, IsAdminRole, has_module_access
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from .tenant import TenantScopedViewSet
 
@@ -59,8 +59,17 @@ class CurrentUserView(APIView):
                 Empleado=user,
                 Miscelanea=tenant,
                 UsadoEn__isnull=False,
+                Revocado=False,
                 ConcedidoHasta__gt=timezone.now(),
             ).exists(),
+            'modulos_delegados': sorted({
+                modulo
+                for delegacion in DelegacionAdmin.objects.filter(
+                    Empleado=user, Miscelanea=tenant, UsadoEn__isnull=False,
+                    Revocado=False, ConcedidoHasta__gt=timezone.now(),
+                )
+                for modulo in (delegacion.Modulos or [])
+            }),
             'miscelanea': {
                 'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
                 'codigo': tenant.Codigo if tenant else '',
@@ -122,6 +131,16 @@ class CrearCodigoAdminView(APIView):
 
     def post(self, request):
         empleado_id = request.data.get('empleadoId')
+        modulos_validos = {
+            'VENTAS', 'PRODUCTOS', 'CATEGORIAS', 'PROVEEDORES',
+            'INVENTARIO', 'PERDIDAS', 'DEVOLUCIONES', 'REPORTES',
+            'AUDITORIA', 'USUARIOS',
+        }
+        modulos = list(dict.fromkeys(
+            str(modulo).strip().upper() for modulo in request.data.get('modulos', [])
+        ))
+        if not modulos or any(modulo not in modulos_validos for modulo in modulos):
+            return Response({'error': 'Debe seleccionar módulos válidos.'}, status=400)
         try:
             duracion_horas = int(request.data.get('duracionHoras', 1))
         except (TypeError, ValueError):
@@ -141,14 +160,30 @@ class CrearCodigoAdminView(APIView):
         except Usuario.DoesNotExist:
             return Response({'error': 'El empleado no pertenece a esta miscelánea.'}, status=404)
 
-        codigo = secrets.token_urlsafe(6).replace('-', '').replace('_', '').upper()[:8]
+        codigo = f"ADM-{secrets.token_hex(4).upper()}"
         delegacion = DelegacionAdmin.objects.create(
             Miscelanea_id=request.user.Miscelanea_id,
             CreadoPor=request.user,
             Empleado=empleado,
             CodigoHash=make_password(codigo),
+            CodigoPrefijo='ADM',
+            Modulos=modulos,
             DuracionMinutos=duracion,
             CodigoExpiraEn=timezone.now() + timedelta(minutes=10),
+        )
+        registrar_evento_manual(
+            request=request,
+            accion='CREAR',
+            modulo='USUARIOS',
+            descripcion=f'{request.user.Nombre} generó una delegación para el cajero {empleado.Nombre}.',
+            datos_nuevos={
+                'delegacion_id': delegacion.IdDelegacion,
+                'empleado_id': empleado.IdUsuario,
+                'modulos': modulos,
+                'duracion_horas': duracion_horas,
+                'codigo_prefijo': 'ADM',
+                'codigo_expira_en': delegacion.CodigoExpiraEn.isoformat(),
+            },
         )
         return Response({
             'id': delegacion.IdDelegacion,
@@ -156,6 +191,7 @@ class CrearCodigoAdminView(APIView):
             'empleado': empleado.Nombre,
             'expiraCodigoEn': delegacion.CodigoExpiraEn,
             'duracionHoras': duracion_horas,
+            'modulos': modulos,
         }, status=201)
 
 
@@ -171,6 +207,7 @@ class ActivarCodigoAdminView(APIView):
             Empleado=request.user,
             Miscelanea_id=request.user.Miscelanea_id,
             UsadoEn__isnull=True,
+            Revocado=False,
             CodigoExpiraEn__gt=timezone.now(),
         )
         delegacion = next((item for item in delegaciones if check_password(codigo, item.CodigoHash)), None)
@@ -181,7 +218,81 @@ class ActivarCodigoAdminView(APIView):
         delegacion.UsadoEn = ahora
         delegacion.ConcedidoHasta = ahora + timedelta(minutes=delegacion.DuracionMinutos)
         delegacion.save(update_fields=['UsadoEn', 'ConcedidoHasta'])
-        return Response({'mensaje': 'Permisos administrativos activados.', 'adminHasta': delegacion.ConcedidoHasta})
+        registrar_evento_manual(
+            request=request,
+            accion='PROCESAR',
+            modulo='USUARIOS',
+            descripcion=(
+                f'{request.user.Nombre} activó la delegación #{delegacion.IdDelegacion} '
+                f'otorgada por {delegacion.CreadoPor.Nombre}.'
+            ),
+            datos_nuevos={
+                'delegacion_id': delegacion.IdDelegacion,
+                'modulos': delegacion.Modulos,
+                'creado_por_id': delegacion.CreadoPor_id,
+                'empleado_id': delegacion.Empleado_id,
+                'concedido_hasta': delegacion.ConcedidoHasta.isoformat(),
+            },
+        )
+        return Response({
+            'mensaje': 'Permisos administrativos activados.',
+            'adminHasta': delegacion.ConcedidoHasta,
+            'modulos': delegacion.Modulos,
+        })
+
+
+class RevocarCodigoAdminView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, delegacion_id):
+        try:
+            delegacion = DelegacionAdmin.objects.get(
+                IdDelegacion=delegacion_id,
+                Miscelanea_id=request.user.Miscelanea_id,
+                Revocado=False,
+            )
+        except DelegacionAdmin.DoesNotExist:
+            return Response({'error': 'Delegación no encontrada o ya revocada.'}, status=404)
+
+        delegacion.Revocado = True
+        delegacion.RevocadoEn = timezone.now()
+        delegacion.RevocadoPor = request.user
+        delegacion.Motivo = str(request.data.get('motivo', '')).strip()[:255] or None
+        delegacion.save(update_fields=['Revocado', 'RevocadoEn', 'RevocadoPor', 'Motivo'])
+        registrar_evento_manual(
+            request=request,
+            accion='MODIFICAR',
+            modulo='USUARIOS',
+            descripcion=f'{request.user.Nombre} revocó la delegación #{delegacion.IdDelegacion} del cajero {delegacion.Empleado.Nombre}.',
+            datos_nuevos={
+                'delegacion_id': delegacion.IdDelegacion,
+                'empleado_id': delegacion.Empleado_id,
+                'modulos': delegacion.Modulos,
+                'motivo': delegacion.Motivo,
+            },
+        )
+        return Response({'mensaje': 'Acceso revocado correctamente.'})
+
+
+class DelegacionesAdminView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        delegaciones = DelegacionAdmin.objects.filter(
+            Miscelanea_id=request.user.Miscelanea_id,
+        ).select_related('Empleado', 'CreadoPor').order_by('-CreadoEn')
+        return Response([{
+            'id': item.IdDelegacion,
+            'empleado': item.Empleado.Nombre,
+            'empleadoId': item.Empleado_id,
+            'creadoPor': item.CreadoPor.Nombre,
+            'modulos': item.Modulos or [],
+            'duracionHoras': item.DuracionMinutos / 60,
+            'codigoExpiraEn': item.CodigoExpiraEn,
+            'usadoEn': item.UsadoEn,
+            'concedidoHasta': item.ConcedidoHasta,
+            'revocado': item.Revocado,
+        } for item in delegaciones])
 
 
 class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
@@ -202,7 +313,7 @@ class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet)
     MODULO_AUDITORIA = 'USUARIOS'
 
     def perform_update(self, serializer):
-        if not has_admin_access(self.request.user):
+        if not has_module_access(self.request.user, 'USUARIOS'):
             for field in ('Rol', 'Estado', 'Miscelanea', 'is_staff', 'is_superuser'):
                 serializer.validated_data.pop(field, None)
         serializer.save()

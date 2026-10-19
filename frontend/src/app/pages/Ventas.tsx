@@ -381,6 +381,7 @@ function ReceiptModal({
   sale: any;
   onClose: () => void;
 }) {
+  const { tenantName } = useAuth();
   const facturaId = sale.id || "N/A";
   const fechaVenta = sale.fecha ? new Date(sale.fecha).toLocaleString() : new Date().toLocaleString();
   const totalVenta = Number(sale.total || 0);
@@ -565,6 +566,7 @@ function VentaRow({
   isAdmin: boolean;
   onAnular: (venta: any) => void;
 }) {
+  const { tenantName } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const detalles: any[] = venta.detalles ?? [];
   const isAnulada = venta.estado === "Anulada";

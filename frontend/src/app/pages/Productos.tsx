@@ -235,11 +235,17 @@ export function Productos() {
           `/catalogo/productos/${editingProduct.id}/`,
           payload,
         );
+        toast.success("Producto actualizado correctamente.");
         fetchProducts(); // Refresh to get calculated fields like stock/price
         setIsEditProductOpen(false);
         setEditingProduct(null);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error updating product:", error);
+        const msg =
+          error?.response?.data?.name?.[0] ||
+          error?.response?.data?.detail ||
+          "Error al actualizar el producto.";
+        toast.error(msg);
       }
     }
   };
@@ -258,6 +264,7 @@ export function Productos() {
         imagen: newProductImagen || null,
       };
       await api.post("/catalogo/productos/", payload);
+      toast.success("Producto creado correctamente.");
       fetchProducts();
       fetchCategories(); // Update product counts
       setIsAddProductOpen(false);
@@ -266,8 +273,13 @@ export function Productos() {
       setNewProductProveedor("");
       setNewProductPresentacion("");
       setNewProductImagen("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding product:", error);
+      const msg =
+        error?.response?.data?.name?.[0] ||
+        error?.response?.data?.detail ||
+        "Error al agregar el producto.";
+      toast.error(msg);
     }
   };
 

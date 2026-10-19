@@ -227,7 +227,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
 
 class DelegacionAdmin(models.Model):
-    """One-time code that grants temporary admin access within one tenant."""
+    """One-time code that grants temporary admin access to selected modules within one tenant."""
 
     IdDelegacion = models.AutoField(primary_key=True)
     Miscelanea = models.ForeignKey(
@@ -249,10 +249,23 @@ class DelegacionAdmin(models.Model):
         related_name='delegaciones_recibidas',
     )
     CodigoHash = models.CharField(max_length=128)
+    CodigoPrefijo = models.CharField(max_length=50, null=True, blank=True)
+    Modulos = models.JSONField(default=list)
     DuracionMinutos = models.PositiveIntegerField()
     CodigoExpiraEn = models.DateTimeField()
     ConcedidoHasta = models.DateTimeField(null=True, blank=True)
     UsadoEn = models.DateTimeField(null=True, blank=True)
+    Revocado = models.BooleanField(default=False)
+    RevocadoEn = models.DateTimeField(null=True, blank=True)
+    RevocadoPor = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='IdRevocadoPor',
+        related_name='delegaciones_revocadas',
+    )
+    Motivo = models.CharField(max_length=255, null=True, blank=True)
     CreadoEn = models.DateTimeField(auto_now_add=True)
 
     class Meta:

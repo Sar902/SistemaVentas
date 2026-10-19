@@ -62,7 +62,7 @@ import { ThemeToggle } from "./ThemeToggle";
  */
 export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { logout, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro } = useAuth();
+  const { logout, userRole, delegatedModules, userName, tenantName, tenantLogo, tenantLogoOscuro } = useAuth();
 
   // ── Definición del menú según rol ─────────────────────────────────────────
   /**
@@ -95,8 +95,24 @@ export function DashboardLayout() {
    * El spread operator (...) combina los arrays en orden: primero los comunes,
    * luego los exclusivos de admin.
    */
-  const menuItems = userRole === "admin"
-    ? [...commonItems, ...adminItems]
+  const modulePaths: Record<string, string[]> = {
+    PRODUCTOS: ["/productos"],
+    INVENTARIO: ["/pedidos"],
+    PERDIDAS: ["/perdidas"],
+    DEVOLUCIONES: ["/devoluciones"],
+    REPORTES: ["/reportes"],
+    AUDITORIA: ["/auditoria"],
+    USUARIOS: ["/usuarios"],
+    VENTAS: ["/ventas"],
+  };
+  const allowedDelegatedPaths = new Set(
+    delegatedModules.flatMap((module) => modulePaths[module] ?? [])
+  );
+  const visibleAdminItems = userRole === "admin"
+    ? adminItems
+    : adminItems.filter((item) => allowedDelegatedPaths.has(item.path));
+  const menuItems = userRole === "admin" || delegatedModules.length > 0
+    ? [...commonItems, ...visibleAdminItems]
     : [...commonItems, { icon: Settings, label: "Ajustes", path: "/ajustes" }];
 
   /**

@@ -52,7 +52,7 @@ class Categoria(models.Model):
     )
     IdCategoria = models.AutoField(primary_key=True)
     Miscelanea = models.ForeignKey('usuarios.Miscelanea', on_delete=models.PROTECT, null=True, blank=True, db_column='IdMiscelanea', related_name='categorias')
-    Nombre = models.CharField(max_length=255, unique=True, null=False, blank=False)
+    Nombre = models.CharField(max_length=255, null=False, blank=False)
     PorcentajeGanancia = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -66,6 +66,12 @@ class Categoria(models.Model):
 
     class Meta:
         db_table = 'Categoria'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['Miscelanea', 'Nombre'],
+                name='unique_categoria_por_miscelanea'
+            )
+        ]
 
 
 class Proveedor(models.Model):
@@ -94,6 +100,12 @@ class Proveedor(models.Model):
 
     class Meta:
         db_table = 'Proveedor'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['Miscelanea', 'Nombre'],
+                name='unique_proveedor_por_miscelanea'
+            )
+        ]
 
 
 class Producto(models.Model):
@@ -149,3 +161,9 @@ class Producto(models.Model):
 
     class Meta:
         db_table = 'Producto'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['Miscelanea', 'Nombre'],
+                name='unique_producto_por_miscelanea'
+            )
+        ]

@@ -31,6 +31,18 @@ export function Ajustes() {
   const [duracionHoras, setDuracionHoras] = useState("1");
   const [codigoGenerado, setCodigoGenerado] = useState("");
   const [codigoAdmin, setCodigoAdmin] = useState("");
+  const [modulos, setModulos] = useState<string[]>(["VENTAS"]);
+  const [delegaciones, setDelegaciones] = useState<any[]>([]);
+  const modulosDisponibles = [
+    ["VENTAS", "Ventas"],
+    ["PRODUCTOS", "Productos"],
+    ["INVENTARIO", "Inventario y compras"],
+    ["PERDIDAS", "Pérdidas"],
+    ["DEVOLUCIONES", "Devoluciones"],
+    ["REPORTES", "Reportes"],
+    ["AUDITORIA", "Auditoría"],
+    ["USUARIOS", "Usuarios"],
+  ];
 
   // CARGAR DATOS DEL USUARIO
   const fetchUserData = async () => {
@@ -58,21 +70,47 @@ export function Ajustes() {
         const lista = Array.isArray(data) ? data : data.results || [];
         setEmpleados(lista.filter((empleado: any) => ["cajero", "vendedor"].includes(empleado.rol)));
       }).catch(() => toast.error("No se pudieron cargar los cajeros."));
+      cargarDelegaciones();
     }
   }, [userRole]);
+
+  const cargarDelegaciones = async () => {
+    try {
+      const { data } = await api.get("/usuarios/delegacion-admin/");
+      setDelegaciones(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("No se pudieron cargar las delegaciones.");
+    }
+  };
 
   const generarCodigoAdmin = async () => {
     if (!empleadoId) {
       toast.warning("Selecciona un cajero.");
       return;
     }
+    if (modulos.length === 0) {
+      toast.warning("Selecciona al menos un módulo.");
+      return;
+    }
     try {
       const { data } = await api.post("/usuarios/delegacion-admin/crear/", {
         empleadoId: Number(empleadoId),
         duracionHoras: Number(duracionHoras),
+        modulos,
       });
       setCodigoGenerado(data.codigo);
+      cargarDelegaciones();
       toast.success("Código generado. Compártelo con el cajero.");
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const revocarDelegacion = async (id: number) => {
+    try {
+      await api.post(`/usuarios/delegacion-admin/${id}/revocar/`);
+      toast.success("Acceso revocado.");
+      cargarDelegaciones();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
     }
@@ -228,9 +266,46 @@ export function Ajustes() {
                 {[1, 2, 4, 8, 12, 24].map((hours) => <option key={hours} value={hours}>{hours} {hours === 1 ? "hora" : "horas"}</option>)}
               </select>
             </div>
+            <div className="md:col-span-3">
+              <Label>Módulos autorizados</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                {modulosDisponibles.map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={modulos.includes(value)}
+                      onChange={(event) => setModulos((actuales) =>
+                        event.target.checked
+                          ? [...actuales, value]
+                          : actuales.filter((modulo) => modulo !== value)
+                      )}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
             <Button onClick={generarCodigoAdmin}><KeyRound className="mr-2" size={16} />Generar código</Button>
           </div>
           {codigoGenerado && <p className="mt-4 font-mono text-xl tracking-widest">Código: {codigoGenerado}</p>}
+          {delegaciones.length > 0 && (
+            <div className="mt-6 space-y-2">
+              <Label>Delegaciones emitidas</Label>
+              {delegaciones.map((delegacion) => (
+                <div key={delegacion.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+                  <span>
+                    <strong>{delegacion.empleado}</strong> · {delegacion.modulos.join(", ")}
+                    {delegacion.revocado ? " · Revocado" : delegacion.concedidoHasta ? " · Activo" : " · Pendiente"}
+                  </span>
+                  {!delegacion.revocado && (
+                    <Button variant="outline" size="sm" onClick={() => revocarDelegacion(delegacion.id)}>
+                      Cortar acceso
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 

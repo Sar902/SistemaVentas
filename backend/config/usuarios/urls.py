@@ -23,6 +23,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivarCodigoAdminView,
     CrearCodigoAdminView,
+    DelegacionesAdminView,
+    RevocarCodigoAdminView,
     CurrentUserView,
     MiscelaneaBrandingView,
     UsuarioViewSet,
@@ -40,6 +42,8 @@ urlpatterns = [
     path('miscelanea/branding/', MiscelaneaBrandingView.as_view()),
     path('delegacion-admin/crear/', CrearCodigoAdminView.as_view()),
     path('delegacion-admin/activar/', ActivarCodigoAdminView.as_view()),
+    path('delegacion-admin/', DelegacionesAdminView.as_view()),
+    path('delegacion-admin/<int:delegacion_id>/revocar/', RevocarCodigoAdminView.as_view()),
     # CRUD estándar (list, create, retrieve, update, destroy)
     path('', include(router.urls)),
     # Endpoint de emergencia para corrección de email por administrador
