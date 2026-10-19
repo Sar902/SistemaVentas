@@ -2,11 +2,10 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
 import { useState, useEffect } from "react";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
-import { Loader2, Save, Eye, EyeOff, Mail, User, KeyRound, ShieldCheck } from "lucide-react";
+import { Loader2, Save, Eye, EyeOff, Mail, User, KeyRound, ShieldCheck, ShoppingCart, Package, Warehouse, TrendingDown, RefreshCcw, BarChart3, Users, Check, Clock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export function Ajustes() {
@@ -34,17 +33,15 @@ export function Ajustes() {
   const [codigoAdmin, setCodigoAdmin] = useState("");
   const [modulos, setModulos] = useState<string[]>(["VENTAS"]);
   const [delegaciones, setDelegaciones] = useState<any[]>([]);
-  const [textoRecibo, setTextoRecibo] = useState("");
-  const [guardandoRecibo, setGuardandoRecibo] = useState(false);
   const modulosDisponibles = [
-    ["VENTAS", "Ventas"],
-    ["PRODUCTOS", "Productos"],
-    ["INVENTARIO", "Inventario y compras"],
-    ["PERDIDAS", "Pérdidas"],
-    ["DEVOLUCIONES", "Devoluciones"],
-    ["REPORTES", "Reportes"],
-    ["AUDITORIA", "Auditoría"],
-    ["USUARIOS", "Usuarios"],
+    { key: "VENTAS", label: "Ventas", desc: "Caja, cobro y facturación", icon: ShoppingCart, color: "text-blue-500", bgActive: "bg-blue-500/10 border-blue-500/50" },
+    { key: "PRODUCTOS", label: "Productos", desc: "Catálogo, precios y stock", icon: Package, color: "text-amber-500", bgActive: "bg-amber-500/10 border-amber-500/50" },
+    { key: "INVENTARIO", label: "Inventario y Compras", desc: "Entradas y proveedores", icon: Warehouse, color: "text-emerald-500", bgActive: "bg-emerald-500/10 border-emerald-500/50" },
+    { key: "PERDIDAS", label: "Pérdidas", desc: "Registro de mermas y bajas", icon: TrendingDown, color: "text-rose-500", bgActive: "bg-rose-500/10 border-rose-500/50" },
+    { key: "DEVOLUCIONES", label: "Devoluciones", desc: "Reingreso y reembolsos", icon: RefreshCcw, color: "text-indigo-500", bgActive: "bg-indigo-500/10 border-indigo-500/50" },
+    { key: "REPORTES", label: "Reportes", desc: "Estadísticas y finanzas", icon: BarChart3, color: "text-purple-500", bgActive: "bg-purple-500/10 border-purple-500/50" },
+    { key: "AUDITORIA", label: "Auditoría", desc: "Registro de operaciones", icon: ShieldCheck, color: "text-cyan-500", bgActive: "bg-cyan-500/10 border-cyan-500/50" },
+    { key: "USUARIOS", label: "Usuarios", desc: "Gestión de cuentas y roles", icon: Users, color: "text-teal-500", bgActive: "bg-teal-500/10 border-teal-500/50" },
   ];
 
   // CARGAR DATOS DEL USUARIO
@@ -71,14 +68,15 @@ export function Ajustes() {
     if (userRole === "admin") {
       api.get("/usuarios/usuarios/").then(({ data }) => {
         const lista = Array.isArray(data) ? data : data.results || [];
-        setEmpleados(lista.filter((empleado: any) =>
-          empleado.rol === "cajero" && empleado.estado === "Activo"
-        ));
+        setEmpleados(lista.filter((empleado: any) => {
+          const rol = String(empleado.rol || "").trim().toLowerCase();
+          const estado = String(empleado.estado || "").trim().toLowerCase();
+          const esCajero = rol === "cajero" || rol === "vendedor";
+          const esActivo = estado === "activo" || empleado.is_active === true;
+          return esCajero && esActivo;
+        }));
       }).catch(() => toast.error("No se pudieron cargar los cajeros."));
       cargarDelegaciones();
-      api.get("/usuarios/miscelanea/branding/").then(({ data }) => {
-        setTextoRecibo(data.texto_recibo ?? "");
-      }).catch(() => toast.error("No se pudo cargar el texto del recibo."));
     }
   }, [userRole]);
 
@@ -124,17 +122,6 @@ export function Ajustes() {
     }
   };
 
-  const guardarTextoRecibo = async () => {
-    setGuardandoRecibo(true);
-    try {
-      await api.patch("/usuarios/miscelanea/branding/", { texto_recibo: textoRecibo });
-      toast.success("Texto del recibo actualizado.");
-    } catch (error: any) {
-      toast.error(getErrorMessage(error));
-    } finally {
-      setGuardandoRecibo(false);
-    }
-  };
 
   const activarCodigoAdmin = async () => {
     if (!codigoAdmin.trim()) {
@@ -268,86 +255,216 @@ export function Ajustes() {
       </h1>
 
       {userRole === "admin" && (
-        <Card className="p-6 rounded-2xl shadow-md dark:bg-slate-900 dark:border dark:border-slate-800">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <ShieldCheck size={18} /> Delegar permisos administrativos
-          </h3>
-          <div className="grid md:grid-cols-3 gap-4 items-end">
-            <div>
-              <Label>Cajero</Label>
-              <select className="w-full h-10 rounded-md border bg-background px-3" value={empleadoId} onChange={(event) => setEmpleadoId(event.target.value)}>
-                <option value="">Seleccionar cajero</option>
-                {empleados.map((empleado) => <option key={empleado.id} value={empleado.id}>{empleado.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Duración</Label>
-              <select className="w-full h-10 rounded-md border bg-background px-3" value={duracionHoras} onChange={(event) => setDuracionHoras(event.target.value)}>
-                {[1, 2, 4, 8, 12, 24].map((hours) => <option key={hours} value={hours}>{hours} {hours === 1 ? "hora" : "horas"}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-3">
-              <Label>Módulos autorizados</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                {modulosDisponibles.map(([value, label]) => (
-                  <label key={value} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={modulos.includes(value)}
-                      onChange={(event) => setModulos((actuales) =>
-                        event.target.checked
-                          ? [...actuales, value]
-                          : actuales.filter((modulo) => modulo !== value)
-                      )}
-                    />
-                    {label}
-                  </label>
-                ))}
+        <Card className="p-4 sm:p-6 rounded-2xl shadow-md border border-border dark:bg-slate-900/80 backdrop-blur-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-border mb-6">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-foreground">Delegar permisos temporales</h3>
+                <p className="text-xs text-muted-foreground">Genera un código de acceso para que un cajero acceda a módulos autorizados</p>
               </div>
             </div>
-            <Button onClick={generarCodigoAdmin}><KeyRound className="mr-2" size={16} />Generar código</Button>
+            <div className="flex items-center gap-1.5 self-start sm:self-auto">
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+                {modulos.length} de {modulosDisponibles.length} seleccionados
+              </span>
+            </div>
           </div>
-          {codigoGenerado && <p className="mt-4 font-mono text-xl tracking-widest">Código: {codigoGenerado}</p>}
-          {delegaciones.length > 0 && (
-            <div className="mt-6 space-y-2">
-              <Label>Delegaciones emitidas</Label>
-              {delegaciones.map((delegacion) => (
-                <div key={delegacion.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
-                  <span>
-                    <strong>{delegacion.empleado}</strong> · {delegacion.modulos.join(", ")}
-                    {delegacion.revocado ? " · Revocado" : delegacion.concedidoHasta ? " · Activo" : " · Pendiente"}
-                  </span>
-                  {!delegacion.revocado && (
-                    <Button variant="outline" size="sm" onClick={() => revocarDelegacion(delegacion.id)}>
-                      Cortar acceso
-                    </Button>
-                  )}
-                </div>
-              ))}
+
+          {/* Selector de Cajero y Duración */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cajero Destino</Label>
+              <select
+                className="w-full h-11 rounded-xl border border-input bg-background/50 px-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+                value={empleadoId}
+                onChange={(event) => setEmpleadoId(event.target.value)}
+              >
+                <option value="">Seleccionar cajero activo...</option>
+                {empleados.map((empleado) => (
+                  <option key={empleado.id} value={empleado.id}>
+                    {empleado.nombre} ({empleado.email})
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-          <div className="mt-6 border-t pt-6 space-y-3">
-            <div>
-              <Label>Texto adicional del recibo</Label>
-              <p className="text-sm text-muted-foreground">
-                Puedes dejarlo vacío si no deseas mostrar ningún texto adicional.
-              </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tiempo de Acceso</Label>
+              <div className="relative">
+                <select
+                  className="w-full h-11 rounded-xl border border-input bg-background/50 px-3 pl-9 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+                  value={duracionHoras}
+                  onChange={(event) => setDuracionHoras(event.target.value)}
+                >
+                  {[1, 2, 4, 8, 12, 24].map((hours) => (
+                    <option key={hours} value={hours}>
+                      {hours} {hours === 1 ? "hora" : "horas"} de sesión
+                    </option>
+                  ))}
+                </select>
+                <Clock className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
-            <Textarea
-              value={textoRecibo}
-              maxLength={500}
-              onChange={(event) => setTextoRecibo(event.target.value)}
-              placeholder="Ejemplo: Gracias por su compra. Vuelva pronto."
-              rows={3}
-            />
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">{textoRecibo.length}/500</span>
-              <Button onClick={guardarTextoRecibo} disabled={guardandoRecibo}>
-                {guardandoRecibo && <Loader2 className="mr-2 size-4 animate-spin" />}
-                Guardar texto del recibo
+
+            <div className="flex sm:col-span-2 lg:col-span-1 items-end">
+              <Button
+                onClick={generarCodigoAdmin}
+                className="w-full h-11 rounded-xl font-bold gap-2 shadow-sm"
+              >
+                <KeyRound size={17} />
+                Generar código de acceso
               </Button>
             </div>
           </div>
+
+          {/* Módulos Autorizados — Grid de Cards Interactivas */}
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Módulos que podrá utilizar
+              </Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModulos(modulosDisponibles.map((m) => m.key))}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Marcar todos
+                </button>
+                <span className="text-muted-foreground text-xs">•</span>
+                <button
+                  type="button"
+                  onClick={() => setModulos([])}
+                  className="text-xs text-muted-foreground hover:underline font-medium"
+                >
+                  Desmarcar
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {modulosDisponibles.map((item) => {
+                const IconComponent = item.icon;
+                const isSelected = modulos.includes(item.key);
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() =>
+                      setModulos((actuales) =>
+                        isSelected
+                          ? actuales.filter((m) => m !== item.key)
+                          : [...actuales, item.key]
+                      )
+                    }
+                    className={`group relative text-left p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 select-none ${
+                      isSelected
+                        ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary/30 dark:bg-primary/15"
+                        : "border-border bg-card/60 hover:bg-accent/50 hover:border-border/80"
+                    }`}
+                  >
+                    <div
+                      className={`p-2 rounded-lg shrink-0 transition-colors ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-muted text-muted-foreground group-hover:text-foreground"
+                      }`}
+                    >
+                      <IconComponent size={18} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={`text-sm font-semibold truncate ${isSelected ? "text-primary dark:text-primary-foreground" : "text-foreground"}`}>
+                          {item.label}
+                        </span>
+                        {isSelected && (
+                          <div className="size-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                            <Check size={10} strokeWidth={3} />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                        {item.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Código generado destacado */}
+          {codigoGenerado && (
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in zoom-in-95">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500 text-white shadow-md">
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Código generado con éxito</p>
+                  <p className="font-mono text-xl sm:text-2xl font-black tracking-widest text-foreground">{codigoGenerado}</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground sm:text-right max-w-xs">
+                Compártelo con el cajero. Deberá ingresarlo en su pantalla de Ajustes para activar los permisos.
+              </p>
+            </div>
+          )}
+
+          {/* Historial de delegaciones emitidas */}
+          {delegaciones.length > 0 && (
+            <div className="space-y-2.5 border-t border-border pt-5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Delegaciones recientes
+                </Label>
+                <span className="text-xs text-muted-foreground">{delegaciones.length} registro(s)</span>
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {delegaciones.map((delegacion) => {
+                  const estadoBadge = delegacion.revocado
+                    ? { text: "Revocado", style: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" }
+                    : delegacion.concedidoHasta
+                    ? { text: "Activo", style: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" }
+                    : { text: "Pendiente", style: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
+
+                  return (
+                    <div
+                      key={delegacion.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-border bg-card/40 p-3 text-sm transition-colors hover:bg-muted/40"
+                    >
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong className="text-foreground font-semibold">{delegacion.empleado}</strong>
+                          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${estadoBadge.style}`}>
+                            {estadoBadge.text}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          Módulos: <span className="text-foreground/80 font-medium">{delegacion.modulos.join(", ")}</span>
+                        </p>
+                      </div>
+
+                      {!delegacion.revocado && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="self-end sm:self-auto h-8 text-xs font-semibold hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors shrink-0"
+                          onClick={() => revocarDelegacion(delegacion.id)}
+                        >
+                          Revocar acceso
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

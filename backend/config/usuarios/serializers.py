@@ -157,6 +157,16 @@ class UsuarioSerializer(serializers.ModelSerializer):
         # Normalización: elimina espacios y convierte a minúsculas
         value = value.lower().strip()
 
+        request = self.context.get('request')
+        if (
+            request
+            and request.user.is_authenticated
+            and request.user.Rol != 'admin'
+            and self.instance
+            and self.instance.IdUsuario == request.user.IdUsuario
+        ):
+            raise serializers.ValidationError("Los cajeros no pueden cambiar su correo electrónico.")
+
         # Verificación solo en modo UPDATE (self.instance existe en PATCH/PUT)
         if self.instance and self.instance.Email:
             correo_actual = self.instance.Email.lower().strip()

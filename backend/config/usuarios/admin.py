@@ -23,7 +23,7 @@ admin.AdminSite.has_permission = _technical_admin_only
 class MiscelaneaAdmin(admin.ModelAdmin):
 	list_display = ('IdMiscelanea', 'Nombre', 'Codigo', 'preview_logo_claro', 'preview_logo_oscuro', 'Estado')
 	search_fields = ('Nombre', 'Codigo')
-	fields = ('Nombre', 'Codigo', 'Logo', 'preview_logo_claro', 'LogoOscuro', 'preview_logo_oscuro', 'Estado')
+	fields = ('Nombre', 'Codigo', 'TextoRecibo', 'Logo', 'preview_logo_claro', 'LogoOscuro', 'preview_logo_oscuro', 'Estado')
 	readonly_fields = ('preview_logo_claro', 'preview_logo_oscuro')
 
 	def preview_logo_claro(self, obj):

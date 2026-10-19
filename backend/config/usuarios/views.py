@@ -171,12 +171,12 @@ class CrearCodigoAdminView(APIView):
             empleado = Usuario.objects.get(
                 IdUsuario=empleado_id,
                 Miscelanea_id=request.user.Miscelanea_id,
-                Rol='cajero',
-                Estado='Activo',
+                Rol__in=['cajero', 'vendedor'],
+                Estado__iexact='Activo',
                 is_active=True,
             )
         except Usuario.DoesNotExist:
-            return Response({'error': 'El empleado no pertenece a esta miscelánea.'}, status=404)
+            return Response({'error': 'El empleado no pertenece a esta miscelánea o no es un cajero activo.'}, status=404)
 
         codigo = f"ADM-{secrets.token_hex(4).upper()}"
         delegacion = DelegacionAdmin.objects.create(

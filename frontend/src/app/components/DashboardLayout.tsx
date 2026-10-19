@@ -224,15 +224,13 @@ export function DashboardLayout() {
 
       {/* ── Sidebar Móvil (overlay sobre el contenido) ──────────────────── */}
       {/* El backdrop captura clicks fuera del sidebar para cerrarlo. */}
-      {/* stopPropagation en el aside: Evita que clicks dentro del sidebar
-          cierren el overlay (el evento no sube al backdrop). */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden print:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 md:hidden print:hidden animate-in fade-in duration-200"
           onClick={() => setIsSidebarOpen(false)}
         >
           <aside
-            className="fixed left-0 top-0 h-screen w-64 bg-card shadow-lg flex flex-col transition-colors print:hidden"
+            className="fixed left-0 top-0 h-full w-[280px] max-w-[85vw] bg-card shadow-2xl flex flex-col transition-colors print:hidden animate-in slide-in-from-left duration-300 border-r border-border"
             onClick={(e) => e.stopPropagation()}
           >
             <SidebarContent mobile />
@@ -244,30 +242,31 @@ export function DashboardLayout() {
       {/* md:ml-64: En desktop, empuja el contenido a la derecha del sidebar. */}
       <div className="md:ml-64 min-h-screen print:ml-0">
         {/* Header sticky: Permanece visible al hacer scroll */}
-        <header className="print:hidden bg-card border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
-          <div className="flex items-center justify-between px-4 md:px-8 py-4">
-            <div className="flex items-center gap-4">
-              {/* Botón de menú hamburgesa — Solo visible en móvil */}
+        <header className="print:hidden bg-card/95 backdrop-blur-md border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
+          <div className="flex items-center justify-between px-3 sm:px-4 md:px-8 py-3 sm:py-4">
+            <div className="flex items-center gap-2.5 sm:gap-4">
+              {/* Botón de menú hamburguesa — Optimizado para touch en móvil */}
               <button
-                className="md:hidden text-foreground"
+                className="md:hidden size-10 rounded-xl flex items-center justify-center text-foreground hover:bg-muted active:scale-95 transition-all"
                 onClick={() => setIsSidebarOpen(true)}
+                aria-label="Abrir menú"
               >
                 <Menu className="size-6" />
               </button>
               <div>
-                <h2 className="font-semibold text-lg text-foreground">
+                <h2 className="font-bold text-base sm:text-lg text-foreground leading-tight">
                   Panel de Control
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground hidden sm:block">
                   Bienvenido de vuelta
                 </p>
               </div>
             </div>
 
             {/* Info del usuario logueado: Nombre y rol del JWT decodificado */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
-              <div className="flex items-center gap-3 pl-3 border-l border-border">
+              <div className="flex items-center gap-2.5 sm:gap-3 pl-2 sm:pl-3 border-l border-border">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium text-foreground">
                     {userName || "Usuario"}
@@ -277,9 +276,9 @@ export function DashboardLayout() {
                     {userRole || ""}
                   </p>
                 </div>
-                {/* Avatar genérico — En una versión futura podría mostrar foto de perfil */}
-                <div className="size-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center shadow-md">
-                  <User className="size-5 text-white" />
+                {/* Avatar */}
+                <div className="size-9 sm:size-10 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center shadow-md shrink-0">
+                  <User className="size-4 sm:size-5 text-white" />
                 </div>
               </div>
             </div>
@@ -287,7 +286,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Área donde React Router renderiza la página actual (Outlet) */}
-        <main className="p-4 md:p-8 print:p-0">
+        <main className="p-3.5 sm:p-5 md:p-8 print:p-0">
           <Outlet />
         </main>
       </div>
