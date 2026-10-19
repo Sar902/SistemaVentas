@@ -65,8 +65,14 @@ def consolidar_registros_duplicados(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # La limpieza de duplicados actualiza FKs y elimina filas. PostgreSQL
+    # mantiene eventos de triggers pendientes hasta el COMMIT, por lo que las
+    # restricciones únicas deben crearse en una operación posterior.
+    atomic = False
+
     dependencies = [
         ('catalogo', '0005_categoria_miscelanea_producto_miscelanea_and_more'),
+        ('inventario', '0009_detalleentradainventario_miscelanea_and_more'),
         ('usuarios', '0014_miscelanea_logooscuro_alter_miscelanea_logo'),
     ]
 
