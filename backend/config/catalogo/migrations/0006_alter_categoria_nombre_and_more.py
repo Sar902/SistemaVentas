@@ -3,6 +3,66 @@
 from django.db import migrations, models
 
 
+def consolidar_registros_duplicados(apps, schema_editor):
+    Categoria = apps.get_model('catalogo', 'Categoria')
+    Proveedor = apps.get_model('catalogo', 'Proveedor')
+    Producto = apps.get_model('catalogo', 'Producto')
+    DetalleEntrada = apps.get_model('inventario', 'DetalleEntradaInventario')
+    EntradaInventario = apps.get_model('inventario', 'EntradaInventario')
+
+    def grupos_duplicados(modelo):
+        claves = (
+            modelo.objects
+            .exclude(Miscelanea_id=None)
+            .values('Miscelanea_id', 'Nombre')
+            .annotate(total=models.Count('pk'))
+            .filter(total__gt=1)
+        )
+        return claves.iterator()
+
+    # Las categorías y proveedores pueden estar referenciados por otros
+    # registros; primero se reasignan las referencias y después se elimina
+    # únicamente el duplicado.
+    for clave in grupos_duplicados(Categoria):
+        registros = list(Categoria.objects.filter(
+            Miscelanea_id=clave['Miscelanea_id'],
+            Nombre=clave['Nombre'],
+        ).order_by('pk'))
+        principal = registros[0]
+        duplicados = [registro.pk for registro in registros[1:]]
+        Producto.objects.filter(IdCategoria_id__in=duplicados).update(
+            IdCategoria_id=principal.pk
+        )
+        Categoria.objects.filter(pk__in=duplicados).delete()
+
+    for clave in grupos_duplicados(Proveedor):
+        registros = list(Proveedor.objects.filter(
+            Miscelanea_id=clave['Miscelanea_id'],
+            Nombre=clave['Nombre'],
+        ).order_by('pk'))
+        principal = registros[0]
+        duplicados = [registro.pk for registro in registros[1:]]
+        Producto.objects.filter(IdProveedor_id__in=duplicados).update(
+            IdProveedor_id=principal.pk
+        )
+        EntradaInventario.objects.filter(IdProveedor_id__in=duplicados).update(
+            IdProveedor_id=principal.pk
+        )
+        Proveedor.objects.filter(pk__in=duplicados).delete()
+
+    for clave in grupos_duplicados(Producto):
+        registros = list(Producto.objects.filter(
+            Miscelanea_id=clave['Miscelanea_id'],
+            Nombre=clave['Nombre'],
+        ).order_by('pk'))
+        principal = registros[0]
+        duplicados = [registro.pk for registro in registros[1:]]
+        DetalleEntrada.objects.filter(IdProducto_id__in=duplicados).update(
+            IdProducto_id=principal.pk
+        )
+        Producto.objects.filter(pk__in=duplicados).delete()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -24,6 +84,10 @@ class Migration(migrations.Migration):
                 ALTER TABLE "Proveedor" DROP CONSTRAINT IF EXISTS "proveedor_nombre_key";
             ''',
             reverse_sql=''
+        ),
+        migrations.RunPython(
+            consolidar_registros_duplicados,
+            reverse_code=migrations.RunPython.noop,
         ),
         migrations.AddConstraint(
             model_name='categoria',
