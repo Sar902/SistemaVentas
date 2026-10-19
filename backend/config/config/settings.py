@@ -51,6 +51,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # 'change-me-in-production' es intencional: falla ruidosamente si el .env no
 # existe, en lugar de pasar desapercibido con una clave vacía.
 SECRET_KEY = os.environ.get('SECRET_KEY', 'change-me-in-production')
+DJANGO_ADMIN_EMAIL = os.environ.get('DJANGO_ADMIN_EMAIL', 'adminSistem@gmail.com').strip().lower()
+DJANGO_ADMIN_PASSWORD = os.environ.get('DJANGO_ADMIN_PASSWORD', '')
 
 # DEBUG: Con True, Django muestra trazas de error completas (incluyendo
 # variables locales y rutas de archivo) directamente en el navegador.

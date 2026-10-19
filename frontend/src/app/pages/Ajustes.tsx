@@ -2,6 +2,7 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
 import { useState, useEffect } from "react";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
@@ -33,6 +34,8 @@ export function Ajustes() {
   const [codigoAdmin, setCodigoAdmin] = useState("");
   const [modulos, setModulos] = useState<string[]>(["VENTAS"]);
   const [delegaciones, setDelegaciones] = useState<any[]>([]);
+  const [textoRecibo, setTextoRecibo] = useState("");
+  const [guardandoRecibo, setGuardandoRecibo] = useState(false);
   const modulosDisponibles = [
     ["VENTAS", "Ventas"],
     ["PRODUCTOS", "Productos"],
@@ -73,6 +76,9 @@ export function Ajustes() {
         ));
       }).catch(() => toast.error("No se pudieron cargar los cajeros."));
       cargarDelegaciones();
+      api.get("/usuarios/miscelanea/branding/").then(({ data }) => {
+        setTextoRecibo(data.texto_recibo ?? "");
+      }).catch(() => toast.error("No se pudo cargar el texto del recibo."));
     }
   }, [userRole]);
 
@@ -115,6 +121,18 @@ export function Ajustes() {
       cargarDelegaciones();
     } catch (error: any) {
       toast.error(getErrorMessage(error));
+    }
+  };
+
+  const guardarTextoRecibo = async () => {
+    setGuardandoRecibo(true);
+    try {
+      await api.patch("/usuarios/miscelanea/branding/", { texto_recibo: textoRecibo });
+      toast.success("Texto del recibo actualizado.");
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setGuardandoRecibo(false);
     }
   };
 
@@ -308,6 +326,28 @@ export function Ajustes() {
               ))}
             </div>
           )}
+          <div className="mt-6 border-t pt-6 space-y-3">
+            <div>
+              <Label>Texto adicional del recibo</Label>
+              <p className="text-sm text-muted-foreground">
+                Puedes dejarlo vacío si no deseas mostrar ningún texto adicional.
+              </p>
+            </div>
+            <Textarea
+              value={textoRecibo}
+              maxLength={500}
+              onChange={(event) => setTextoRecibo(event.target.value)}
+              placeholder="Ejemplo: Gracias por su compra. Vuelva pronto."
+              rows={3}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">{textoRecibo.length}/500</span>
+              <Button onClick={guardarTextoRecibo} disabled={guardandoRecibo}>
+                {guardandoRecibo && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Guardar texto del recibo
+              </Button>
+            </div>
+          </div>
         </Card>
       )}
 

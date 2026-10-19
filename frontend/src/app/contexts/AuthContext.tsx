@@ -48,6 +48,7 @@ interface AuthContextType {
   tenantName: string | null;
   tenantLogo: string | null;
   tenantLogoOscuro: string | null;
+  receiptText: string;
   delegatedModules: string[];
   login: (access: string, refresh: string) => void;
   logout: () => void;
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenantName, setTenantName] = useState<string | null>(null);
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [tenantLogoOscuro, setTenantLogoOscuro] = useState<string | null>(null);
+  const [receiptText, setReceiptText] = useState("");
   const [delegatedModules, setDelegatedModules] = useState<string[]>([]);
 
   /**
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTenantName(data.miscelanea?.nombre ?? null);
           setTenantLogo(formatLogoUrl(data.miscelanea?.logo ?? data.miscelanea?.logo_claro ?? null));
           setTenantLogoOscuro(formatLogoUrl(data.miscelanea?.logo_oscuro ?? null));
+          setReceiptText(data.miscelanea?.texto_recibo ?? "");
         }).catch(() => {
           // JWT claims remain as a fallback if the branding request fails.
         });
@@ -138,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTenantLogo(null);
       setTenantLogoOscuro(null);
       setDelegatedModules([]);
+      setReceiptText("");
     }
   }, [token]); // Solo re-ejecutar cuando el token cambie
 
@@ -171,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, delegatedModules, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, receiptText, delegatedModules, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

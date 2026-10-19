@@ -73,6 +73,7 @@ class CurrentUserView(APIView):
             'miscelanea': {
                 'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
                 'codigo': tenant.Codigo if tenant else '',
+                'texto_recibo': tenant.TextoRecibo if tenant else '',
                 'logo': logo,
                 'logo_claro': logo,
                 'logo_oscuro': logo_oscuro,
@@ -95,6 +96,7 @@ class MiscelaneaBrandingView(APIView):
             'id': tenant.IdMiscelanea,
             'nombre': tenant.Nombre,
             'codigo': tenant.Codigo,
+            'texto_recibo': tenant.TextoRecibo,
             'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,
@@ -115,11 +117,25 @@ class MiscelaneaBrandingView(APIView):
 
         if 'nombre' in request.data and str(request.data['nombre']).strip():
             tenant.Nombre = str(request.data['nombre']).strip()
+        if 'texto_recibo' in request.data:
+            texto_recibo = str(request.data['texto_recibo']).strip()
+            if len(texto_recibo) > 500:
+                return Response({'error': 'El texto del recibo no puede superar 500 caracteres.'}, status=400)
+            tenant.TextoRecibo = texto_recibo
 
         tenant.save()
+        if 'texto_recibo' in request.data:
+            registrar_evento_manual(
+                request=request,
+                accion='MODIFICAR',
+                modulo='USUARIOS',
+                descripcion=f'{request.user.Nombre} actualizó el texto del recibo de {tenant.Nombre}.',
+                datos_nuevos={'texto_recibo': tenant.TextoRecibo},
+            )
         return Response({
             'mensaje': 'Branding actualizado correctamente.',
             'nombre': tenant.Nombre,
+            'texto_recibo': tenant.TextoRecibo,
             'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,

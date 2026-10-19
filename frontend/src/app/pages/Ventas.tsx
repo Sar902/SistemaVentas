@@ -144,7 +144,7 @@ function ConfirmAnularModal({
  * Función utilitaria para generar y descargar el PDF de una venta (recibo).
  * Reutilizada tanto al terminar una venta como desde el historial.
  */
-const downloadSalePDF = (venta: any, tenantName?: string) => {
+const downloadSalePDF = (venta: any, tenantName?: string, receiptText?: string) => {
   const doc = new jsPDF({
     unit: 'mm',
     format: [80, 180] // Formato ticket estándar 80mm
@@ -162,14 +162,14 @@ const downloadSalePDF = (venta: any, tenantName?: string) => {
   doc.text((tenantName || "MISCELÁNEA").toUpperCase(), center, y, { align: "center" });
 
   y += 5;
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(100, 116, 139); // slate-500
-  doc.text("De lo recibido de tu mano, te damos.", center, y, { align: "center" });
-
-  y += 4;
-  doc.setFont('helvetica', 'normal');
-  doc.text("Managua, Nicaragua", center, y, { align: "center" });
+  if (receiptText) {
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    const lines = doc.splitTextToSize(receiptText, pageWidth - margin * 2);
+    doc.text(lines, center, y, { align: "center" });
+    y += lines.length * 4;
+  }
 
   y += 7;
   doc.setDrawColor(203, 213, 225); // slate-300
@@ -254,17 +254,14 @@ const downloadSalePDF = (venta: any, tenantName?: string) => {
     doc.text(`C$ ${Number(venta.vuelto || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}`, pageWidth - margin - 2, y, { align: "right" });
   }
 
-  y += 15;
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.text("¡MUCHAS GRACIAS POR SU COMPRA!", center, y, { align: "center" });
-
-  y += 4;
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(100, 116, 139);
-  doc.text("Dios le bendiga", center, y, { align: "center" });
+  if (receiptText) {
+    y += 8;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    const footerLines = doc.splitTextToSize(receiptText, pageWidth - margin * 2);
+    doc.text(footerLines, center, y, { align: "center" });
+  }
 
   doc.save(`Ticket_Venta_${venta.id}.pdf`);
 };
@@ -381,7 +378,7 @@ function ReceiptModal({
   sale: any;
   onClose: () => void;
 }) {
-  const { tenantName } = useAuth();
+  const { tenantName, receiptText } = useAuth();
   const facturaId = sale.id || "N/A";
   const fechaVenta = sale.fecha ? new Date(sale.fecha).toLocaleString() : new Date().toLocaleString();
   const totalVenta = Number(sale.total || 0);
@@ -449,7 +446,7 @@ function ReceiptModal({
 
           <Button
             className="w-full h-16 rounded-[1.25rem] font-black gap-3 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-700 dark:hover:bg-slate-600 shadow-xl shadow-slate-200 transition-all active:scale-95 text-base"
-            onClick={() => downloadSalePDF(sale, tenantName || undefined)}
+            onClick={() => downloadSalePDF(sale, tenantName || undefined, receiptText)}
           >
             <Download className="size-6" />
             DESCARGAR RECIBO
@@ -462,9 +459,7 @@ function ReceiptModal({
         <div className="text-center mb-4">
           <h1 className="text-lg font-black uppercase tracking-tighter">{tenantName || "MISCELÁNEA"}</h1>
           <div className="text-[10px] space-y-0.5 text-muted-foreground italic">
-            <p>De lo recibido de tu mano, te damos.</p>
-            <p>Managua, Nicaragua</p>
-            <p>Telf: +505 8888-8888</p>
+          {receiptText && <p className="whitespace-pre-line">{receiptText}</p>}
           </div>
           <div className="my-2 border-b border-double border-slate-900 py-1">
             <p className="font-bold text-xs">FACTURA DE VENTA</p>
@@ -532,7 +527,7 @@ function ReceiptModal({
         <div className="mt-8 text-center space-y-2 border-t border-dashed border-slate-300 dark:border-slate-600 pt-4">
           <p className="font-bold text-[10px]">¡MUCHAS GRACIAS POR SU PREFERENCIA!</p>
           <p className="text-[9px] italic">"Porque de él, y por él, y para él, son todas las cosas."</p>
-          <p className="font-black text-xs mt-2 uppercase tracking-widest">Dios le bendiga</p>
+          {receiptText && <p className="font-black text-xs mt-2 uppercase tracking-widest whitespace-pre-line">{receiptText}</p>}
         </div>
       </div>
     </div>
@@ -566,7 +561,7 @@ function VentaRow({
   isAdmin: boolean;
   onAnular: (venta: any) => void;
 }) {
-  const { tenantName } = useAuth();
+  const { tenantName, receiptText } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const detalles: any[] = venta.detalles ?? [];
   const isAnulada = venta.estado === "Anulada";
@@ -626,7 +621,7 @@ function VentaRow({
             className="text-blue-500 hover:bg-blue-50 dark:bg-blue-900/30 hover:text-blue-700 dark:text-blue-400 gap-1.5 font-semibold"
             onClick={(e) => {
               e.stopPropagation();
-              downloadSalePDF(venta, tenantName || undefined);
+              downloadSalePDF(venta, tenantName || undefined, receiptText);
             }}
           >
             <Download className="size-4" />
