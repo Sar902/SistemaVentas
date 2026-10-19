@@ -47,6 +47,7 @@ interface AuthContextType {
   userName: string | null;
   tenantName: string | null;
   tenantLogo: string | null;
+  tenantLogoOscuro: string | null;
   login: (access: string, refresh: string) => void;
   logout: () => void;
 }
@@ -70,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string | null>(null);
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
+  const [tenantLogoOscuro, setTenantLogoOscuro] = useState<string | null>(null);
 
   /**
    * Efecto de decodificación del JWT.
@@ -98,19 +100,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserRole(decoded.rol ?? null);
         setUserName(decoded.nombre ?? null);
         setTenantName(decoded.miscelanea_nombre ?? null);
-        const logoPath = decoded.miscelanea_logo ?? null;
+
         const apiBase = import.meta.env.VITE_API_URL || "/api";
         const backendBase = apiBase.replace(/\/api\/?$/, "");
-        setTenantLogo(
-          logoPath && !logoPath.startsWith("http")
-            ? `${backendBase}${logoPath}`
-            : logoPath
-        );
+        const formatLogoUrl = (url: string | null | undefined) => {
+          if (!url) return null;
+          return url.startsWith("http") ? url : `${backendBase}${url}`;
+        };
+
+        const logoPath = decoded.miscelanea_logo ?? decoded.miscelanea_logo_claro ?? null;
+        const logoOscuroPath = decoded.miscelanea_logo_oscuro ?? null;
+
+        setTenantLogo(formatLogoUrl(logoPath));
+        setTenantLogoOscuro(formatLogoUrl(logoOscuroPath));
 
         api.get("/usuarios/me/").then(({ data }) => {
           setUserRole(data.es_admin ? "admin" : decoded.rol ?? null);
           setTenantName(data.miscelanea?.nombre ?? null);
-          setTenantLogo(data.miscelanea?.logo ?? null);
+          setTenantLogo(formatLogoUrl(data.miscelanea?.logo ?? data.miscelanea?.logo_claro ?? null));
+          setTenantLogoOscuro(formatLogoUrl(data.miscelanea?.logo_oscuro ?? null));
         }).catch(() => {
           // JWT claims remain as a fallback if the branding request fails.
         });
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserName(null);
       setTenantName(null);
       setTenantLogo(null);
+      setTenantLogoOscuro(null);
     }
   }, [token]); // Solo re-ejecutar cuando el token cambie
 
@@ -158,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

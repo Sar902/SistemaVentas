@@ -47,6 +47,9 @@ class CurrentUserView(APIView):
         logo = None
         if tenant and tenant.Logo:
             logo = request.build_absolute_uri(tenant.Logo.url)
+        logo_oscuro = None
+        if tenant and tenant.LogoOscuro:
+            logo_oscuro = request.build_absolute_uri(tenant.LogoOscuro.url)
 
         return Response({
             'id': user.IdUsuario,
@@ -62,7 +65,55 @@ class CurrentUserView(APIView):
                 'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
                 'codigo': tenant.Codigo if tenant else '',
                 'logo': logo,
+                'logo_claro': logo,
+                'logo_oscuro': logo_oscuro,
             },
+        })
+
+
+class MiscelaneaBrandingView(APIView):
+    """
+    Endpoint para consultar y actualizar el branding (logos claro/oscuro y nombre)
+    de la miscelánea autenticada.
+    """
+    permission_classes = [IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        tenant = request.user.Miscelanea
+        if not tenant:
+            return Response({'error': 'El usuario no tiene una miscelánea asignada.'}, status=404)
+        return Response({
+            'id': tenant.IdMiscelanea,
+            'nombre': tenant.Nombre,
+            'codigo': tenant.Codigo,
+            'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
+            'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
+            'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,
+        })
+
+    def patch(self, request):
+        tenant = request.user.Miscelanea
+        if not tenant:
+            return Response({'error': 'El usuario no tiene una miscelánea asignada.'}, status=404)
+
+        if 'logo' in request.FILES:
+            tenant.Logo = request.FILES['logo']
+        elif 'logo_claro' in request.FILES:
+            tenant.Logo = request.FILES['logo_claro']
+
+        if 'logo_oscuro' in request.FILES:
+            tenant.LogoOscuro = request.FILES['logo_oscuro']
+
+        if 'nombre' in request.data and str(request.data['nombre']).strip():
+            tenant.Nombre = str(request.data['nombre']).strip()
+
+        tenant.save()
+        return Response({
+            'mensaje': 'Branding actualizado correctamente.',
+            'nombre': tenant.Nombre,
+            'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
+            'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
+            'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,
         })
 
 

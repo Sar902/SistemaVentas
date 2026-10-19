@@ -3,10 +3,37 @@ from django import forms
 from .models import Miscelanea, Usuario
 
 
+from django.utils.html import format_html
+
+
 @admin.register(Miscelanea)
 class MiscelaneaAdmin(admin.ModelAdmin):
-	list_display = ('IdMiscelanea', 'Nombre', 'Codigo', 'Estado')
+	list_display = ('IdMiscelanea', 'Nombre', 'Codigo', 'preview_logo_claro', 'preview_logo_oscuro', 'Estado')
 	search_fields = ('Nombre', 'Codigo')
+	fields = ('Nombre', 'Codigo', 'Logo', 'preview_logo_claro', 'LogoOscuro', 'preview_logo_oscuro', 'Estado')
+	readonly_fields = ('preview_logo_claro', 'preview_logo_oscuro')
+
+	def preview_logo_claro(self, obj):
+		if obj and obj.Logo:
+			return format_html(
+				'<div style="display:inline-block; padding:4px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:50%;">'
+				'<img src="{}" style="width:50px; height:50px; object-fit:cover; border-radius:50%; display:block;" />'
+				'</div>',
+				obj.Logo.url
+			)
+		return "Sin logo claro"
+	preview_logo_claro.short_description = "Vista previa (Claro)"
+
+	def preview_logo_oscuro(self, obj):
+		if obj and obj.LogoOscuro:
+			return format_html(
+				'<div style="display:inline-block; padding:4px; background:#0f172a; border:1px solid #334155; border-radius:50%;">'
+				'<img src="{}" style="width:50px; height:50px; object-fit:cover; border-radius:50%; display:block;" />'
+				'</div>',
+				obj.LogoOscuro.url
+			)
+		return "Sin logo oscuro"
+	preview_logo_oscuro.short_description = "Vista previa (Oscuro)"
 
 
 class UsuarioAdminForm(forms.ModelForm):

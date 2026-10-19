@@ -24,6 +24,7 @@ from .views import (
     ActivarCodigoAdminView,
     CrearCodigoAdminView,
     CurrentUserView,
+    MiscelaneaBrandingView,
     UsuarioViewSet,
     cambiar_email_directo,
 )
@@ -36,6 +37,7 @@ router.register(r'usuarios', UsuarioViewSet)
 
 urlpatterns = [
     path('me/', CurrentUserView.as_view()),
+    path('miscelanea/branding/', MiscelaneaBrandingView.as_view()),
     path('delegacion-admin/crear/', CrearCodigoAdminView.as_view()),
     path('delegacion-admin/activar/', ActivarCodigoAdminView.as_view()),
     # CRUD estándar (list, create, retrieve, update, destroy)

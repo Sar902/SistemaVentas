@@ -62,7 +62,7 @@ import { ThemeToggle } from "./ThemeToggle";
  */
 export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { logout, userRole, userName, tenantName, tenantLogo } = useAuth();
+  const { logout, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro } = useAuth();
 
   // ── Definición del menú según rol ─────────────────────────────────────────
   /**
@@ -113,18 +113,29 @@ export function DashboardLayout() {
         className={`p-6 border-b border-border ${mobile ? "flex items-center justify-between" : ""}`}
       >
         <div className="flex items-center gap-3">
-          <div className="size-10 flex items-center justify-center">
-            {/* Logo modo claro */}
-            {tenantLogo ? (
-              <img
-                src={tenantLogo}
-                alt={`Logo de ${tenantName || "la miscelánea"}`}
-                className="size-10 object-contain"
-              />
+          <div className="relative size-16 min-w-16 rounded-full overflow-hidden ring-2 ring-border/80 shadow-sm bg-white dark:bg-slate-900 flex items-center justify-center shrink-0">
+            {tenantLogo || tenantLogoOscuro ? (
+              <>
+                {/* Logo modo claro */}
+                {tenantLogo && (
+                  <img
+                    src={tenantLogo}
+                    alt={`Logo claro de ${tenantName || "la miscelánea"}`}
+                    className={`size-full rounded-full object-cover ${tenantLogoOscuro ? "dark:hidden" : ""}`}
+                  />
+                )}
+                {/* Logo modo oscuro */}
+                {tenantLogoOscuro && (
+                  <img
+                    src={tenantLogoOscuro}
+                    alt={`Logo oscuro de ${tenantName || "la miscelánea"}`}
+                    className={`size-full rounded-full object-cover ${tenantLogo ? "hidden dark:block" : ""}`}
+                  />
+                )}
+              </>
             ) : (
               <Store className="size-8 text-muted-foreground" />
             )}
-            {/* Logo modo oscuro */}
           </div>
           <div>
             <h1 className="font-bold text-lg bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
