@@ -155,7 +155,9 @@ class CrearCodigoAdminView(APIView):
             empleado = Usuario.objects.get(
                 IdUsuario=empleado_id,
                 Miscelanea_id=request.user.Miscelanea_id,
-                Rol__in=('cajero', 'vendedor'),
+                Rol='cajero',
+                Estado='Activo',
+                is_active=True,
             )
         except Usuario.DoesNotExist:
             return Response({'error': 'El empleado no pertenece a esta miscelánea.'}, status=404)

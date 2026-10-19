@@ -68,7 +68,9 @@ export function Ajustes() {
     if (userRole === "admin") {
       api.get("/usuarios/usuarios/").then(({ data }) => {
         const lista = Array.isArray(data) ? data : data.results || [];
-        setEmpleados(lista.filter((empleado: any) => ["cajero", "vendedor"].includes(empleado.rol)));
+        setEmpleados(lista.filter((empleado: any) =>
+          empleado.rol === "cajero" && empleado.estado === "Activo"
+        ));
       }).catch(() => toast.error("No se pudieron cargar los cajeros."));
       cargarDelegaciones();
     }
@@ -321,6 +323,8 @@ export function Ajustes() {
         </Card>
       )}
 
+      {userRole === "admin" && (
+        <>
       {/* TARJETA DE DATOS DEL PERFIL */}
       <Card className="p-6 rounded-2xl shadow-md dark:bg-slate-900 dark:border dark:border-slate-800">
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -457,6 +461,8 @@ export function Ajustes() {
           </div>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

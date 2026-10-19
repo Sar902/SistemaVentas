@@ -106,6 +106,16 @@ class UsuarioSerializer(serializers.ModelSerializer):
         password = validated_data.pop('Password', None)
 
         if password:
+            request = self.context.get('request')
+            if (
+                request
+                and request.user.is_authenticated
+                and request.user.Rol != 'admin'
+                and instance.IdUsuario == request.user.IdUsuario
+            ):
+                raise serializers.ValidationError({
+                    "password": "Los cajeros no pueden cambiar su contraseña."
+                })
             # check_password() compara la contraseña en texto plano con el hash almacenado.
             # Si son iguales, el cambio no tiene sentido → devolver error descriptivo.
             if instance.check_password(password):
