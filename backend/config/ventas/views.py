@@ -105,25 +105,13 @@ class ProcesarVentaView(APIView):
     # CanProcessSale: Permite tanto a admins como a vendedores registrar ventas.
     permission_classes = [CanProcessSale]
 
-    @transaction.atomic
     def post(self, request):
         """
         Procesa una venta completa de forma transaccional.
 
-        Flujo:
-          1. Crear encabezado de Venta.
-          2. Para cada ítem en 'detalles':
-             a. Bloquear el registro de Inventario (select_for_update).
-             b. Crear DetalleVenta vinculando Venta e Inventario.
-             c. Cambiar el Estado del Inventario a 'Vendido'.
-          3. Si CUALQUIER paso falla, el @transaction.atomic hace rollback
-             de TODOS los cambios de este bloque.
-
-        Args:
-            request: Petición POST con datos de la venta.
-
-        Returns:
-            Response: 201 Created si exitoso, 400 Bad Request si error.
+        El bloque atómico va dentro del try para que, si algo falla, el rollback
+        ocurra antes de registrar el error en auditoría (si no, la transacción
+        dañada impide escribir y el cliente recibe un 500 sin mensaje).
         """
         usuario_id = request.data.get('usuarioId')
         fecha = request.data.get('fecha')
@@ -131,47 +119,53 @@ class ProcesarVentaView(APIView):
         detalles = request.data.get('detalles', [])
 
         try:
-            usuario = Usuario.objects.get(
-                IdUsuario=usuario_id,
-                Miscelanea_id=request.user.Miscelanea_id,
-            )
-            venta = Venta.objects.create(
-                IdUsuario=usuario,
-                Miscelanea_id=request.user.Miscelanea_id,
-                Fecha=fecha,
-                Total=total,
-            )
-            for d in detalles:
-                inv_id = d.get('inventarioId')
-                precio = d.get('precioVentaUnitario')
-                # select_for_update(): Bloquea esta fila hasta que la transacción termine.
-                # Si otro proceso intenta vender la misma unidad simultáneamente,
-                # esperará hasta que este bloqueo sea liberado.
-                inventario = Inventario.objects.select_for_update().get(
-                    IdInventario=inv_id,
+            if not detalles:
+                raise ValueError('La venta no tiene productos.')
+            with transaction.atomic():
+                usuario = Usuario.objects.get(
+                    IdUsuario=usuario_id or request.user.IdUsuario,
                     Miscelanea_id=request.user.Miscelanea_id,
                 )
-                DetalleVenta.objects.create(
-                    IdVenta=venta,
-                    IdInventario=inventario,
+                venta = Venta.objects.create(
+                    IdUsuario=usuario,
                     Miscelanea_id=request.user.Miscelanea_id,
-                    PrecioVentaUnitario=precio
+                    Fecha=fecha,
+                    Total=total,
                 )
-                # Marcar como vendida para que deje de aparecer en el stock disponible
-                inventario.Estado = "Vendido"
-                inventario.save()
-            registrar_evento_manual(
-                request=request,
-                accion='PROCESAR',
-                modulo='VENTAS',
-                descripcion=f'Venta #{venta.IdVenta} procesada por {request.user.Nombre}.',
-                datos_nuevos={
-                    'id_venta': venta.IdVenta,
-                    'usuario_id': usuario.IdUsuario,
-                    'total': str(venta.Total),
-                    'cantidad_detalles': len(detalles),
-                },
-            )
+                for d in detalles:
+                    inv_id = d.get('inventarioId')
+                    precio = d.get('precioVentaUnitario')
+                    # select_for_update(): bloquea la fila hasta terminar la transacción,
+                    # evitando vender la misma unidad desde dos dispositivos a la vez.
+                    inventario = Inventario.objects.select_for_update().get(
+                        IdInventario=inv_id,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                    )
+                    if inventario.Estado != 'Disponible':
+                        raise ValueError(
+                            'Uno de los productos ya fue vendido desde otro dispositivo. '
+                            'Se actualizó el inventario, intenta de nuevo.'
+                        )
+                    DetalleVenta.objects.create(
+                        IdVenta=venta,
+                        IdInventario=inventario,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                        PrecioVentaUnitario=precio
+                    )
+                    inventario.Estado = "Vendido"
+                    inventario.save()
+                registrar_evento_manual(
+                    request=request,
+                    accion='PROCESAR',
+                    modulo='VENTAS',
+                    descripcion=f'Venta #{venta.IdVenta} procesada por {request.user.Nombre}.',
+                    datos_nuevos={
+                        'id_venta': venta.IdVenta,
+                        'usuario_id': usuario.IdUsuario,
+                        'total': str(venta.Total),
+                        'cantidad_detalles': len(detalles),
+                    },
+                )
             return Response({
                 "message": "Venta exitosa",
                 "id": venta.IdVenta,
@@ -179,14 +173,16 @@ class ProcesarVentaView(APIView):
                 "total": venta.Total
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
-            # Registrar el intento fallido en auditoría
-            registrar_evento_manual(
-                request=request,
-                accion='PROCESAR',
-                modulo='VENTAS',
-                descripcion=f'Error al procesar venta: {str(e)}',
-                resultado='FALLIDO',
-            )
+            try:
+                registrar_evento_manual(
+                    request=request,
+                    accion='PROCESAR',
+                    modulo='VENTAS',
+                    descripcion=f'Error al procesar venta: {str(e)}',
+                    resultado='FALLIDO',
+                )
+            except Exception:
+                pass
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 

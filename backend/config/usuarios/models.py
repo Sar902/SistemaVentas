@@ -29,11 +29,17 @@ class Miscelanea(models.Model):
     Codigo = models.CharField(max_length=50, unique=True, null=False, blank=False)
     Logo = models.ImageField(upload_to='miscelaneas/logos/', null=True, blank=True, verbose_name='Logo modo claro')
     LogoOscuro = models.ImageField(upload_to='miscelaneas/logos/', null=True, blank=True, verbose_name='Logo modo oscuro')
+    TextoReciboSuperior = models.TextField(
+        blank=True,
+        default='',
+        max_length=500,
+        verbose_name='Mensaje superior del recibo',
+    )
     TextoRecibo = models.TextField(
         blank=True,
         default='',
         max_length=500,
-        verbose_name='Texto adicional del recibo',
+        verbose_name='Mensaje inferior del recibo',
     )
     Estado = models.CharField(max_length=10, default='Activo')
 

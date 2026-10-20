@@ -51,7 +51,6 @@ class CajerosActivosView(APIView):
             Miscelanea_id=request.user.Miscelanea_id,
             Rol__in=['cajero', 'vendedor'],
             Estado__iexact='Activo',
-            is_active=True,
         ).order_by('Nombre')
         return Response([{
             'id': emp.IdUsuario,
@@ -98,6 +97,7 @@ class CurrentUserView(APIView):
                 'nombre': tenant.Nombre if tenant else 'Sistema de Ventas',
                 'codigo': tenant.Codigo if tenant else '',
                 'texto_recibo': tenant.TextoRecibo if tenant else '',
+                'texto_recibo_superior': tenant.TextoReciboSuperior if tenant else '',
                 'logo': logo,
                 'logo_claro': logo,
                 'logo_oscuro': logo_oscuro,
@@ -121,6 +121,7 @@ class MiscelaneaBrandingView(APIView):
             'nombre': tenant.Nombre,
             'codigo': tenant.Codigo,
             'texto_recibo': tenant.TextoRecibo,
+            'texto_recibo_superior': tenant.TextoReciboSuperior,
             'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,
@@ -146,20 +147,29 @@ class MiscelaneaBrandingView(APIView):
             if len(texto_recibo) > 500:
                 return Response({'error': 'El texto del recibo no puede superar 500 caracteres.'}, status=400)
             tenant.TextoRecibo = texto_recibo
+        if 'texto_recibo_superior' in request.data:
+            texto_superior = str(request.data['texto_recibo_superior']).strip()
+            if len(texto_superior) > 500:
+                return Response({'error': 'El mensaje superior no puede superar 500 caracteres.'}, status=400)
+            tenant.TextoReciboSuperior = texto_superior
 
         tenant.save()
-        if 'texto_recibo' in request.data:
+        if 'texto_recibo' in request.data or 'texto_recibo_superior' in request.data:
             registrar_evento_manual(
                 request=request,
                 accion='MODIFICAR',
                 modulo='USUARIOS',
-                descripcion=f'{request.user.Nombre} actualizó el texto del recibo de {tenant.Nombre}.',
-                datos_nuevos={'texto_recibo': tenant.TextoRecibo},
+                descripcion=f'{request.user.Nombre} actualizó los mensajes del recibo de {tenant.Nombre}.',
+                datos_nuevos={
+                    'texto_recibo_superior': tenant.TextoReciboSuperior,
+                    'texto_recibo': tenant.TextoRecibo,
+                },
             )
         return Response({
             'mensaje': 'Branding actualizado correctamente.',
             'nombre': tenant.Nombre,
             'texto_recibo': tenant.TextoRecibo,
+            'texto_recibo_superior': tenant.TextoReciboSuperior,
             'logo': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_claro': request.build_absolute_uri(tenant.Logo.url) if tenant.Logo else None,
             'logo_oscuro': request.build_absolute_uri(tenant.LogoOscuro.url) if tenant.LogoOscuro else None,
@@ -197,7 +207,6 @@ class CrearCodigoAdminView(APIView):
                 Miscelanea_id=request.user.Miscelanea_id,
                 Rol__in=['cajero', 'vendedor'],
                 Estado__iexact='Activo',
-                is_active=True,
             )
         except Usuario.DoesNotExist:
             return Response({'error': 'El empleado no pertenece a esta miscelánea o no es un cajero activo.'}, status=404)

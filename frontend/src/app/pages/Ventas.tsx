@@ -144,7 +144,7 @@ function ConfirmAnularModal({
  * Función utilitaria para generar y descargar el PDF de una venta (recibo).
  * Reutilizada tanto al terminar una venta como desde el historial.
  */
-const downloadSalePDF = (venta: any, tenantName?: string, receiptText?: string) => {
+const downloadSalePDF = (venta: any, tenantName?: string, receiptText?: string, receiptTextTop?: string) => {
   const doc = new jsPDF({
     unit: 'mm',
     format: [80, 180] // Formato ticket estándar 80mm
@@ -162,11 +162,11 @@ const downloadSalePDF = (venta: any, tenantName?: string, receiptText?: string) 
   doc.text((tenantName || "MISCELÁNEA").toUpperCase(), center, y, { align: "center" });
 
   y += 5;
-  if (receiptText) {
+  if (receiptTextTop) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(100, 116, 139);
-    const lines = doc.splitTextToSize(receiptText, pageWidth - margin * 2);
+    const lines = doc.splitTextToSize(receiptTextTop, pageWidth - margin * 2);
     doc.text(lines, center, y, { align: "center" });
     y += lines.length * 4;
   }
@@ -378,7 +378,7 @@ function ReceiptModal({
   sale: any;
   onClose: () => void;
 }) {
-  const { tenantName, receiptText } = useAuth();
+  const { tenantName, receiptText, receiptTextTop } = useAuth();
   const facturaId = sale.id || "N/A";
   const fechaVenta = sale.fecha ? new Date(sale.fecha).toLocaleString() : new Date().toLocaleString();
   const totalVenta = Number(sale.total || 0);
@@ -446,7 +446,7 @@ function ReceiptModal({
 
           <Button
             className="w-full h-16 rounded-[1.25rem] font-black gap-3 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-700 dark:hover:bg-slate-600 shadow-xl shadow-slate-200 transition-all active:scale-95 text-base"
-            onClick={() => downloadSalePDF(sale, tenantName || undefined, receiptText)}
+            onClick={() => downloadSalePDF(sale, tenantName || undefined, receiptText, receiptTextTop)}
           >
             <Download className="size-6" />
             DESCARGAR RECIBO
@@ -459,7 +459,7 @@ function ReceiptModal({
         <div className="text-center mb-4">
           <h1 className="text-lg font-black uppercase tracking-tighter">{tenantName || "MISCELÁNEA"}</h1>
           <div className="text-[10px] space-y-0.5 text-muted-foreground italic">
-          {receiptText && <p className="whitespace-pre-line">{receiptText}</p>}
+          {receiptTextTop && <p className="whitespace-pre-line">{receiptTextTop}</p>}
           </div>
           <div className="my-2 border-b border-double border-slate-900 py-1">
             <p className="font-bold text-xs">FACTURA DE VENTA</p>
@@ -561,7 +561,7 @@ function VentaRow({
   isAdmin: boolean;
   onAnular: (venta: any) => void;
 }) {
-  const { tenantName, receiptText } = useAuth();
+  const { tenantName, receiptText, receiptTextTop } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const detalles: any[] = venta.detalles ?? [];
   const isAnulada = venta.estado === "Anulada";
@@ -621,7 +621,7 @@ function VentaRow({
             className="text-blue-500 hover:bg-blue-50 dark:bg-blue-900/30 hover:text-blue-700 dark:text-blue-400 gap-1.5 font-semibold"
             onClick={(e) => {
               e.stopPropagation();
-              downloadSalePDF(venta, tenantName || undefined, receiptText);
+              downloadSalePDF(venta, tenantName || undefined, receiptText, receiptTextTop);
             }}
           >
             <Download className="size-4" />
@@ -911,8 +911,10 @@ export function Ventas() {
     } catch (error: any) {
       console.error(error);
       toast.error(
-        error.response?.data?.error || "Error al procesar la transacción."
+        error.response?.data?.error ||
+          (error.response ? `Error del servidor (${error.response.status}).` : "Sin conexión con el servidor. Verifica tu internet e intenta de nuevo.")
       );
+      fetchInventoryForSale();
     } finally {
       setIsSubmitting(false);
     }

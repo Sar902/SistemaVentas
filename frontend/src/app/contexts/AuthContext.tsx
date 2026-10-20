@@ -49,6 +49,7 @@ interface AuthContextType {
   tenantLogo: string | null;
   tenantLogoOscuro: string | null;
   receiptText: string;
+  receiptTextTop: string;
   delegatedModules: string[];
   login: (access: string, refresh: string) => void;
   logout: () => void;
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenantLogo, setTenantLogo] = useState<string | null>(null);
   const [tenantLogoOscuro, setTenantLogoOscuro] = useState<string | null>(null);
   const [receiptText, setReceiptText] = useState("");
+  const [receiptTextTop, setReceiptTextTop] = useState("");
   const [delegatedModules, setDelegatedModules] = useState<string[]>([]);
 
   /**
@@ -125,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTenantLogo(formatLogoUrl(data.miscelanea?.logo ?? data.miscelanea?.logo_claro ?? null));
           setTenantLogoOscuro(formatLogoUrl(data.miscelanea?.logo_oscuro ?? null));
           setReceiptText(data.miscelanea?.texto_recibo ?? "");
+          setReceiptTextTop(data.miscelanea?.texto_recibo_superior ?? "");
         }).catch(() => {
           // JWT claims remain as a fallback if the branding request fails.
         });
@@ -142,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTenantLogoOscuro(null);
       setDelegatedModules([]);
       setReceiptText("");
+      setReceiptTextTop("");
     }
   }, [token]); // Solo re-ejecutar cuando el token cambie
 
@@ -175,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, receiptText, delegatedModules, login, logout }}>
+    <AuthContext.Provider value={{ token, userId, userRole, userName, tenantName, tenantLogo, tenantLogoOscuro, receiptText, receiptTextTop, delegatedModules, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

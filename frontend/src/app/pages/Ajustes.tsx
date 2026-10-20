@@ -9,7 +9,31 @@ import { Loader2, Save, Eye, EyeOff, Mail, User, KeyRound, ShieldCheck, Shopping
 import { useAuth } from "../contexts/AuthContext";
 
 export function Ajustes() {
-  const { userId, userRole } = useAuth();
+  const { userId, userRole, receiptText, receiptTextTop } = useAuth();
+  const [textoSuperior, setTextoSuperior] = useState("");
+  const [textoInferior, setTextoInferior] = useState("");
+  const [guardandoRecibo, setGuardandoRecibo] = useState(false);
+
+  useEffect(() => {
+    setTextoSuperior(receiptTextTop || "");
+    setTextoInferior(receiptText || "");
+  }, [receiptText, receiptTextTop]);
+
+  const guardarMensajesRecibo = async () => {
+    try {
+      setGuardandoRecibo(true);
+      await api.patch("/usuarios/miscelanea/branding/", {
+        texto_recibo_superior: textoSuperior,
+        texto_recibo: textoInferior,
+      });
+      toast.success("Mensajes del recibo guardados.");
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setGuardandoRecibo(false);
+    }
+  };
 
   // DATOS DEL USUARIO
   const [userData, setUserData] = useState<any>(null);
@@ -397,10 +421,38 @@ export function Ajustes() {
             </div>
           )}
 
-          {/* Nota informativa: el historial de delegaciones está en Auditoría */}
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground">
-            <ShieldCheck size={14} className="shrink-0 text-cyan-500" />
-            <span>El historial completo de delegaciones y acciones realizadas está disponible en la sección de <strong className="text-foreground">Auditoría</strong>.</span>
+          {/* Mensajes del recibo */}
+          <div className="space-y-3 border-t border-border pt-6">
+            <div>
+              <h3 className="font-bold text-base text-foreground">Mensajes del recibo</h3>
+              <p className="text-xs text-muted-foreground">Se imprimen arriba y abajo del recibo de cada venta.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mensaje superior</Label>
+                <textarea
+                  className="w-full min-h-20 rounded-xl border border-input bg-background/50 p-3 text-sm focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  maxLength={500}
+                  value={textoSuperior}
+                  onChange={(event) => setTextoSuperior(event.target.value)}
+                  placeholder="Ej: Dirección, teléfono..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mensaje inferior</Label>
+                <textarea
+                  className="w-full min-h-20 rounded-xl border border-input bg-background/50 p-3 text-sm focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  maxLength={500}
+                  value={textoInferior}
+                  onChange={(event) => setTextoInferior(event.target.value)}
+                  placeholder="Ej: ¡Gracias por su compra!"
+                />
+              </div>
+            </div>
+            <Button onClick={guardarMensajesRecibo} disabled={guardandoRecibo} className="gap-2">
+              {guardandoRecibo ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Guardar mensajes
+            </Button>
           </div>
         </Card>
       )}

@@ -888,7 +888,7 @@ const formatarFecha = (fecha: string, esFin: boolean) => {
             Reportes de la Miscelánea
           </h1>
           <p className="text-xl text-muted-foreground font-medium italic mt-1">
-            tenantName || "Miscelánea"
+            {tenantName || "Miscelánea"}
           </p>
         </div>
       )}
