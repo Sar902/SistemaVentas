@@ -31,10 +31,9 @@ export function Ajustes() {
   const [duracionHoras, setDuracionHoras] = useState("1");
   const [codigoGenerado, setCodigoGenerado] = useState("");
   const [codigoAdmin, setCodigoAdmin] = useState("");
-  const [modulos, setModulos] = useState<string[]>(["VENTAS"]);
-  const [delegaciones, setDelegaciones] = useState<any[]>([]);
+  const [modulos, setModulos] = useState<string[]>(["PRODUCTOS"]);
+  // Ventas y Dashboard ya son accesibles por defecto para el cajero, por eso no se delegan.
   const modulosDisponibles = [
-    { key: "VENTAS", label: "Ventas", desc: "Caja, cobro y facturación", icon: ShoppingCart, color: "text-blue-500", bgActive: "bg-blue-500/10 border-blue-500/50" },
     { key: "PRODUCTOS", label: "Productos", desc: "Catálogo, precios y stock", icon: Package, color: "text-amber-500", bgActive: "bg-amber-500/10 border-amber-500/50" },
     { key: "INVENTARIO", label: "Inventario y Compras", desc: "Entradas y proveedores", icon: Warehouse, color: "text-emerald-500", bgActive: "bg-emerald-500/10 border-emerald-500/50" },
     { key: "PERDIDAS", label: "Pérdidas", desc: "Registro de mermas y bajas", icon: TrendingDown, color: "text-rose-500", bgActive: "bg-rose-500/10 border-rose-500/50" },
@@ -66,28 +65,22 @@ export function Ajustes() {
 
   useEffect(() => {
     if (userRole === "admin") {
-      api.get("/usuarios/usuarios/").then(({ data }) => {
-        const lista = Array.isArray(data) ? data : data.results || [];
-        setEmpleados(lista.filter((empleado: any) => {
-          const rol = String(empleado.rol || "").trim().toLowerCase();
-          const estado = String(empleado.estado || "").trim().toLowerCase();
-          const esCajero = rol === "cajero" || rol === "vendedor";
-          const esActivo = estado === "activo" || empleado.is_active === true;
-          return esCajero && esActivo;
-        }));
-      }).catch(() => toast.error("No se pudieron cargar los cajeros."));
-      cargarDelegaciones();
+      // Endpoint dedicado que retorna solo cajeros activos del tenant
+      api.get("/usuarios/cajeros-activos/").then(({ data }) => {
+        setEmpleados(Array.isArray(data) ? data : []);
+      }).catch(() => {
+        // Fallback: listar todos y filtrar en cliente
+        api.get("/usuarios/usuarios/").then(({ data }) => {
+          const lista = Array.isArray(data) ? data : data.results || [];
+          setEmpleados(lista.filter((emp: any) => {
+            const rol = String(emp.rol || "").trim().toLowerCase();
+            const estado = String(emp.estado || "").trim().toLowerCase();
+            return (rol === "cajero" || rol === "vendedor") && estado === "activo";
+          }));
+        }).catch(() => toast.error("No se pudieron cargar los cajeros."));
+      });
     }
   }, [userRole]);
-
-  const cargarDelegaciones = async () => {
-    try {
-      const { data } = await api.get("/usuarios/delegacion-admin/");
-      setDelegaciones(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error("No se pudieron cargar las delegaciones.");
-    }
-  };
 
   const generarCodigoAdmin = async () => {
     if (!empleadoId) {
@@ -111,17 +104,6 @@ export function Ajustes() {
       toast.error(getErrorMessage(error));
     }
   };
-
-  const revocarDelegacion = async (id: number) => {
-    try {
-      await api.post(`/usuarios/delegacion-admin/${id}/revocar/`);
-      toast.success("Acceso revocado.");
-      cargarDelegaciones();
-    } catch (error: any) {
-      toast.error(getErrorMessage(error));
-    }
-  };
-
 
   const activarCodigoAdmin = async () => {
     if (!codigoAdmin.trim()) {
@@ -415,56 +397,11 @@ export function Ajustes() {
             </div>
           )}
 
-          {/* Historial de delegaciones emitidas */}
-          {delegaciones.length > 0 && (
-            <div className="space-y-2.5 border-t border-border pt-5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Delegaciones recientes
-                </Label>
-                <span className="text-xs text-muted-foreground">{delegaciones.length} registro(s)</span>
-              </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {delegaciones.map((delegacion) => {
-                  const estadoBadge = delegacion.revocado
-                    ? { text: "Revocado", style: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" }
-                    : delegacion.concedidoHasta
-                    ? { text: "Activo", style: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" }
-                    : { text: "Pendiente", style: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
-
-                  return (
-                    <div
-                      key={delegacion.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-border bg-card/40 p-3 text-sm transition-colors hover:bg-muted/40"
-                    >
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <strong className="text-foreground font-semibold">{delegacion.empleado}</strong>
-                          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${estadoBadge.style}`}>
-                            {estadoBadge.text}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">
-                          Módulos: <span className="text-foreground/80 font-medium">{delegacion.modulos.join(", ")}</span>
-                        </p>
-                      </div>
-
-                      {!delegacion.revocado && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="self-end sm:self-auto h-8 text-xs font-semibold hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors shrink-0"
-                          onClick={() => revocarDelegacion(delegacion.id)}
-                        >
-                          Revocar acceso
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Nota informativa: el historial de delegaciones está en Auditoría */}
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground">
+            <ShieldCheck size={14} className="shrink-0 text-cyan-500" />
+            <span>El historial completo de delegaciones y acciones realizadas está disponible en la sección de <strong className="text-foreground">Auditoría</strong>.</span>
+          </div>
         </Card>
       )}
 

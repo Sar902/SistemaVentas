@@ -471,10 +471,17 @@ class ReporteComprasFiltradasView(APIView):
                 # Normalización: convierte a int o None
                 p_id = int(proveedor_id) if proveedor_id and str(proveedor_id).strip() not in ["", "null", "undefined"] else None
                 
-                cursor.execute(
-                    "SELECT * FROM sp_compras_filtradas(%s, %s, %s, %s, %s)",
-                    [inicio, fin, p_id, None, None]
-                )
+                cursor.execute("""
+                    SELECT ei."IdEntradaInventario" AS id_entrada,
+                           ei."FechaEntrada"::DATE AS fecha_ingreso,
+                           pr."Nombre"::VARCHAR AS nombre_proveedor,
+                           ei."Total"::NUMERIC AS total_compra
+                    FROM "EntradaInventario" ei
+                    JOIN "Proveedor" pr ON ei."IdProveedor" = pr."IdProveedor"
+                    WHERE ei."IdMiscelanea" = %s
+                      AND ei."FechaEntrada"::DATE BETWEEN %s::DATE AND %s::DATE
+                      AND (%s::INT IS NULL OR ei."IdProveedor" = %s::INT)
+                """, [request.user.Miscelanea_id, inicio, fin, p_id, p_id])
                 columns = [col[0].lower() for col in cursor.description]
                 result = [dict(zip(columns, row)) for row in cursor.fetchall()]
             return Response(result)
@@ -518,10 +525,30 @@ class ReporteProductosSinMovimientoView(APIView):
             fecha_inicio = fecha_fin - timedelta(days=dias_int)
 
             with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT * FROM sp_productos_sin_movimiento(%s, %s)",
-                    [fecha_inicio, fecha_fin]
-                )
+                cursor.execute("""
+                    WITH ult AS (
+                        SELECT dei."IdProducto", MAX(v."Fecha")::DATE AS ultima
+                        FROM "Venta" v
+                        JOIN "DetalleVenta" dv ON v."IdVenta" = dv."IdVenta"
+                        JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                        JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                        WHERE v."IdMiscelanea" = %(t)s
+                        GROUP BY dei."IdProducto"
+                    )
+                    SELECT p."Nombre"::VARCHAR AS nombre_producto,
+                           c."Nombre"::VARCHAR AS categoria,
+                           (SELECT COUNT(*) FROM "Inventario" inv
+                              JOIN "DetalleEntradaInventario" d2 ON inv."IdDetalleEntrada" = d2."IdDetalleEntrada"
+                             WHERE d2."IdProducto" = p."IdProducto" AND inv."Estado" = 'Disponible'
+                               AND inv."IdMiscelanea" = %(t)s)::BIGINT AS stock_actual,
+                           ult.ultima AS ultima_venta,
+                           COALESCE(CURRENT_DATE - ult.ultima, 0)::INTEGER AS dias_sin_venta
+                    FROM "Producto" p
+                    JOIN "Categoria" c ON p."IdCategoria" = c."IdCategoria"
+                    LEFT JOIN ult ON ult."IdProducto" = p."IdProducto"
+                    WHERE p."IdMiscelanea" = %(t)s
+                      AND (ult.ultima IS NULL OR ult.ultima < %(ini)s::DATE)
+                """, {'t': request.user.Miscelanea_id, 'ini': fecha_inicio})
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)

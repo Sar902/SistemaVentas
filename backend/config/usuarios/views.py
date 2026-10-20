@@ -28,6 +28,7 @@ import re
 import secrets
 from datetime import timedelta
 from django.contrib.auth.hashers import check_password, make_password
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.response import Response
 
@@ -36,6 +37,29 @@ from .serializers import UsuarioSerializer
 from .permissions import CanManageUserProfile, IsAdminRole, has_module_access
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from .tenant import TenantScopedViewSet
+
+
+class CajerosActivosView(APIView):
+    """
+    Retorna la lista de cajeros/vendedores activos del tenant del admin autenticado.
+    Endpoint simplificado para el selector de delegación de permisos en Ajustes.
+    """
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        empleados = Usuario.objects.filter(
+            Miscelanea_id=request.user.Miscelanea_id,
+            Rol__in=['cajero', 'vendedor'],
+            Estado__iexact='Activo',
+            is_active=True,
+        ).order_by('Nombre')
+        return Response([{
+            'id': emp.IdUsuario,
+            'nombre': emp.Nombre,
+            'email': emp.Email,
+            'rol': emp.Rol,
+            'estado': emp.Estado,
+        } for emp in empleados])
 
 
 class CurrentUserView(APIView):
@@ -221,21 +245,22 @@ class ActivarCodigoAdminView(APIView):
         if not codigo:
             return Response({'error': 'Debe ingresar un código.'}, status=400)
 
-        delegaciones = DelegacionAdmin.objects.filter(
-            Empleado=request.user,
-            Miscelanea_id=request.user.Miscelanea_id,
-            UsadoEn__isnull=True,
-            Revocado=False,
-            CodigoExpiraEn__gt=timezone.now(),
-        )
-        delegacion = next((item for item in delegaciones if check_password(codigo, item.CodigoHash)), None)
-        if not delegacion:
-            return Response({'error': 'Código inválido o expirado.'}, status=400)
+        with transaction.atomic():
+            delegaciones = DelegacionAdmin.objects.select_for_update().filter(
+                Empleado=request.user,
+                Miscelanea_id=request.user.Miscelanea_id,
+                UsadoEn__isnull=True,
+                Revocado=False,
+                CodigoExpiraEn__gt=timezone.now(),
+            )
+            delegacion = next((item for item in delegaciones if check_password(codigo, item.CodigoHash)), None)
+            if not delegacion:
+                return Response({'error': 'Código inválido o expirado.'}, status=400)
 
-        ahora = timezone.now()
-        delegacion.UsadoEn = ahora
-        delegacion.ConcedidoHasta = ahora + timedelta(minutes=delegacion.DuracionMinutos)
-        delegacion.save(update_fields=['UsadoEn', 'ConcedidoHasta'])
+            ahora = timezone.now()
+            delegacion.UsadoEn = ahora
+            delegacion.ConcedidoHasta = ahora + timedelta(minutes=delegacion.DuracionMinutos)
+            delegacion.save(update_fields=['UsadoEn', 'ConcedidoHasta'])
         registrar_evento_manual(
             request=request,
             accion='PROCESAR',

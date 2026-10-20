@@ -707,6 +707,7 @@ export function Ventas() {
   // Flujo de Pago y Recibo
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [lastSaleResult, setLastSaleResult] = useState<any | null>(null);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   useEffect(() => {
     setSearchTerm("");
@@ -1001,11 +1002,13 @@ export function Ventas() {
           </button>
         </div>
       </div>
-
       {/* ─── TAB: POS ─── */}
       {activeTab === "pos" && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="relative">
+          {/* Layout principal */}
+          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
+            {/* Catálogo (siempre visible) */}
+            <div className="lg:col-span-2 space-y-4">
             <Card className="p-4 border-0 shadow-sm sticky top-0 z-10 flex flex-col gap-4 bg-card">
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
@@ -1085,10 +1088,11 @@ export function Ventas() {
                 </div>
               )}
             </div>
-          </div>
+            </div>
 
-          <div className="lg:col-span-1">
-            <Card className="flex flex-col h-[600px] border-0 shadow-xl overflow-hidden sticky top-4">
+            {/* Carrito desktop: siempre visible en lg+ */}
+            <div className="lg:col-span-1 hidden lg:block">
+              <Card className="flex flex-col h-[600px] border-0 shadow-xl overflow-hidden sticky top-4">
               <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-4 text-white">
                 <h2 className="text-lg font-bold flex items-center gap-2">
                   <ShoppingCart className="size-5" />
@@ -1177,6 +1181,90 @@ export function Ventas() {
               </div>
             </Card>
           </div>
+        </div>
+
+          {/* Carrito m\u00f3vil: overlay desde abajo */}
+          {mobileCartOpen && (
+            <div
+              className="fixed inset-0 z-50 lg:hidden"
+              onClick={() => setMobileCartOpen(false)}
+            >
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+              <div
+                className="absolute bottom-0 left-0 right-0 bg-card rounded-t-2xl shadow-2xl flex flex-col max-h-[80vh] border-t border-border"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-4 text-white rounded-t-2xl flex items-center justify-between">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <ShoppingCart className="size-5" />
+                    Carrito ({cart.length})
+                  </h2>
+                  <button onClick={() => setMobileCartOpen(false)} className="p-1 rounded-full hover:bg-white/20">
+                    <X className="size-5" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {cart.length === 0 ? (
+                    <div className="py-8 flex flex-col items-center justify-center text-gray-400 opacity-50">
+                      <ShoppingCart className="size-12 mb-3" />
+                      <p className="text-sm">Selecciona productos para vender</p>
+                    </div>
+                  ) : (
+                    cart.map((item) => (
+                      <div
+                        key={item.productoId}
+                        className="flex justify-between items-center bg-muted p-3 rounded-lg shadow-sm border border-border"
+                      >
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className="font-semibold text-sm text-foreground truncate">{item.name}</p>
+                          <p className="text-green-700 dark:text-green-400 text-xs font-bold">C${item.price.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-card rounded-lg border p-1 border-border">
+                          <button onClick={(e) => { e.stopPropagation(); decreaseQuantity(item.productoId); }} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-red-500">
+                            <Minus className="size-4" />
+                          </button>
+                          <span className="w-6 text-center text-sm font-bold text-foreground">{item.quantity}</span>
+                          <button onClick={(e) => { e.stopPropagation(); addToCart(productos.find((p) => p.id === item.productoId)); }} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-green-600">
+                            <Plus className="size-4" />
+                          </button>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.productoId); }} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="p-4 bg-card border-t border-border">
+                  <div className="flex justify-between mb-3 text-xl">
+                    <span className="font-bold text-foreground">Total</span>
+                    <span className="font-black text-green-600 dark:text-green-400">C${totalCart.toFixed(2)}</span>
+                  </div>
+                  <Button
+                    onClick={() => { setMobileCartOpen(false); setIsPaymentModalOpen(true); }}
+                    disabled={cart.length === 0 || isSubmitting}
+                    className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Receipt className="size-5 mr-2" /> Cobrar ahora
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bot\u00f3n flotante del carrito (solo m\u00f3vil) */}
+          <button
+            className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-3.5 rounded-full shadow-2xl active:scale-95 transition-all"
+            onClick={() => setMobileCartOpen(true)}
+          >
+            <ShoppingCart className="size-5" />
+            {cart.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 size-5 bg-rose-500 rounded-full text-xs flex items-center justify-center font-black">
+                {cart.length}
+              </span>
+            )}
+            {cart.length > 0 ? `C$${totalCart.toFixed(2)}` : "Carrito"}
+          </button>
         </div>
       )}
 

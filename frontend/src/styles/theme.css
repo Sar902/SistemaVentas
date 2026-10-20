@@ -126,6 +126,16 @@
 
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+  }
+
+  /* En móvil, las tablas anchas se desplazan dentro de su contenedor en vez de ensanchar toda la página */
+  @media (max-width: 767px) {
+    main table {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+    }
   }
 
   /**

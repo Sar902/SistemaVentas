@@ -22,6 +22,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ActivarCodigoAdminView,
+    CajerosActivosView,
     CrearCodigoAdminView,
     DelegacionesAdminView,
     RevocarCodigoAdminView,
@@ -40,6 +41,7 @@ router.register(r'usuarios', UsuarioViewSet)
 urlpatterns = [
     path('me/', CurrentUserView.as_view()),
     path('miscelanea/branding/', MiscelaneaBrandingView.as_view()),
+    path('cajeros-activos/', CajerosActivosView.as_view()),
     path('delegacion-admin/crear/', CrearCodigoAdminView.as_view()),
     path('delegacion-admin/activar/', ActivarCodigoAdminView.as_view()),
     path('delegacion-admin/', DelegacionesAdminView.as_view()),

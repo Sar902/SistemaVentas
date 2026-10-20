@@ -129,7 +129,7 @@ export function DashboardLayout() {
         className={`p-6 border-b border-border ${mobile ? "flex items-center justify-between" : ""}`}
       >
         <div className="flex items-center gap-3">
-          <div className="relative size-16 min-w-16 rounded-full overflow-hidden ring-2 ring-border/80 shadow-sm bg-white dark:bg-slate-900 flex items-center justify-center shrink-0">
+          <div className="relative size-12 min-w-12 md:size-16 md:min-w-16 rounded-full overflow-hidden ring-2 ring-border/80 shadow-sm bg-white dark:bg-slate-900 flex items-center justify-center shrink-0">
             {tenantLogo || tenantLogoOscuro ? (
               <>
                 {/* Logo modo claro */}
@@ -240,7 +240,7 @@ export function DashboardLayout() {
 
       {/* ── Área de Contenido Principal ─────────────────────────────────── */}
       {/* md:ml-64: En desktop, empuja el contenido a la derecha del sidebar. */}
-      <div className="md:ml-64 min-h-screen print:ml-0">
+      <div className="md:ml-64 min-h-screen min-w-0 max-w-full overflow-x-hidden print:ml-0 print:overflow-visible">
         {/* Header sticky: Permanece visible al hacer scroll */}
         <header className="print:hidden bg-card/95 backdrop-blur-md border-b border-border sticky top-0 z-30 shadow-sm transition-colors">
           <div className="flex items-center justify-between px-3 sm:px-4 md:px-8 py-3 sm:py-4">
@@ -253,6 +253,24 @@ export function DashboardLayout() {
               >
                 <Menu className="size-6" />
               </button>
+              {(tenantLogo || tenantLogoOscuro) && (
+                <div className="md:hidden size-9 rounded-full overflow-hidden ring-2 ring-border/80 bg-white dark:bg-slate-900 shrink-0">
+                  {tenantLogo && (
+                    <img
+                      src={tenantLogo}
+                      alt={`Logo de ${tenantName || "la miscelánea"}`}
+                      className={`size-full object-cover ${tenantLogoOscuro ? "dark:hidden" : ""}`}
+                    />
+                  )}
+                  {tenantLogoOscuro && (
+                    <img
+                      src={tenantLogoOscuro}
+                      alt={`Logo de ${tenantName || "la miscelánea"}`}
+                      className={`size-full object-cover ${tenantLogo ? "hidden dark:block" : ""}`}
+                    />
+                  )}
+                </div>
+              )}
               <div>
                 <h2 className="font-bold text-base sm:text-lg text-foreground leading-tight">
                   Panel de Control
@@ -286,7 +304,7 @@ export function DashboardLayout() {
         </header>
 
         {/* Área donde React Router renderiza la página actual (Outlet) */}
-        <main className="p-3.5 sm:p-5 md:p-8 print:p-0">
+        <main className="min-w-0 max-w-full p-3.5 sm:p-5 md:p-8 print:p-0">
           <Outlet />
         </main>
       </div>

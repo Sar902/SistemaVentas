@@ -20,7 +20,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, AlertTriangle, Activity,
   Clock, Globe, Monitor, Server, Table2, Code2,
-  LogIn, Wifi,
+  LogIn, Wifi, KeyRound,
 } from "lucide-react";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ function ResultadoBadge({ resultado }: { resultado: "EXITOSO" | "FALLIDO" }) {
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export function Auditoria() {
-  const [tabActiva, setTabActiva] = useState<"logs" | "bd" | "sesiones">("logs");
+  const [tabActiva, setTabActiva] = useState<"logs" | "bd" | "sesiones" | "delegaciones">("logs");
 
   return (
     <div className="space-y-6">
@@ -187,11 +187,12 @@ export function Auditoria() {
       </div>
 
       {/* Selector de pestañas */}
-      <div className="flex border-b border-border">
+      <div className="flex flex-wrap gap-0 border-b border-border">
         {[
           { key: "logs" as const, label: "Logs del Sistema", icon: Activity },
           { key: "bd" as const, label: "Salud de la BD", icon: Database },
           { key: "sesiones" as const, label: "Sesiones Recientes", icon: Users },
+          { key: "delegaciones" as const, label: "Delegaciones", icon: KeyRound },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -213,6 +214,7 @@ export function Auditoria() {
       {tabActiva === "logs" && <TabLogs />}
       {tabActiva === "bd" && <TabEstadoBD />}
       {tabActiva === "sesiones" && <TabSesiones />}
+      {tabActiva === "delegaciones" && <TabDelegaciones />}
     </div>
   );
 }
@@ -858,6 +860,192 @@ function TabSesiones() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PESTAÑA 4 — DELEGACIONES DE PERMISOS
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface Delegacion {
+  id: number;
+  empleado: string;
+  empleadoId: number;
+  creadoPor: string;
+  modulos: string[];
+  duracionHoras: number;
+  codigoExpiraEn: string | null;
+  usadoEn: string | null;
+  concedidoHasta: string | null;
+  revocado: boolean;
+}
+
+function TabDelegaciones() {
+  const [datos, setDatos] = useState<Delegacion[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/usuarios/delegacion-admin/");
+      setDatos(Array.isArray(data) ? data : []);
+    } catch {
+      setError("No se pudieron cargar las delegaciones.");
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const revocar = async (id: number) => {
+    try {
+      await api.post(`/usuarios/delegacion-admin/${id}/revocar/`);
+      await cargar();
+    } catch {
+      // silencio: el error se verá en el log
+    }
+  };
+
+  const filtrados = datos.filter((d) => {
+    const matchEstado =
+      !filtroEstado ||
+      (filtroEstado === "activo" && !d.revocado && d.concedidoHasta && new Date(d.concedidoHasta) > new Date()) ||
+      (filtroEstado === "pendiente" && !d.revocado && !d.usadoEn) ||
+      (filtroEstado === "revocado" && d.revocado) ||
+      (filtroEstado === "expirado" && !d.revocado && d.concedidoHasta && new Date(d.concedidoHasta) <= new Date());
+    const matchBusqueda =
+      !busqueda ||
+      d.empleado.toLowerCase().includes(busqueda.toLowerCase()) ||
+      d.creadoPor.toLowerCase().includes(busqueda.toLowerCase());
+    return matchEstado && matchBusqueda;
+  });
+
+  function getEstadoBadge(d: Delegacion) {
+    if (d.revocado) return { text: "Revocado", cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" };
+    if (!d.usadoEn) return { text: "Pendiente", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" };
+    if (d.concedidoHasta && new Date(d.concedidoHasta) > new Date()) return { text: "Activo", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" };
+    return { text: "Expirado", cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" };
+  }
+
+  if (cargando) return (
+    <div className="flex items-center justify-center py-20 text-muted-foreground">
+      <RefreshCw className="size-6 animate-spin mr-3" /> Cargando delegaciones...
+    </div>
+  );
+  if (error) return (
+    <div className="flex items-center justify-center py-20 text-red-500 gap-2">
+      <AlertTriangle className="size-5" /> {error}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Encabezado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-foreground">Historial de Delegaciones de Permisos</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Registro de quién otorgó acceso a quién y en qué módulos.</p>
+        </div>
+        <button
+          onClick={cargar}
+          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RefreshCw className="size-3.5" /> Actualizar
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          placeholder="Buscar por cajero o admin..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+        >
+          <option value="">Todos los estados</option>
+          <option value="activo">Activo</option>
+          <option value="pendiente">Pendiente (no usado)</option>
+          <option value="expirado">Expirado</option>
+          <option value="revocado">Revocado</option>
+        </select>
+      </div>
+
+      {/* Contador */}
+      <p className="text-xs text-muted-foreground">{filtrados.length} registro(s) encontrados de {datos.length} total.</p>
+
+      {/* Tabla / Cards */}
+      {filtrados.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          <KeyRound className="size-8 mx-auto mb-2 opacity-30" />
+          No hay delegaciones que coincidan con el filtro.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtrados.map((d) => {
+            const badge = getEstadoBadge(d);
+            return (
+              <div
+                key={d.id}
+                className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3"
+              >
+                {/* Cabecera de la delegación */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <KeyRound className="size-4 text-primary shrink-0" />
+                    <span className="font-semibold text-sm text-foreground">{d.empleado}</span>
+                    <span className="text-xs text-muted-foreground">por <strong>{d.creadoPor}</strong></span>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${badge.cls}`}>
+                      {badge.text}
+                    </span>
+                  </div>
+                  {!d.revocado && d.usadoEn && (
+                    <button
+                      onClick={() => revocar(d.id)}
+                      className="self-start sm:self-auto text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
+                    >
+                      Revocar
+                    </button>
+                  )}
+                </div>
+
+                {/* Detalles */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="bg-muted/40 rounded-lg p-2.5">
+                    <p className="text-muted-foreground font-medium mb-1">Módulos autorizados</p>
+                    <div className="flex flex-wrap gap-1">
+                      {d.modulos.map((m) => (
+                        <span key={m} className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-muted/40 rounded-lg p-2.5">
+                    <p className="text-muted-foreground font-medium mb-1">Fechas</p>
+                    {d.usadoEn && <p><span className="text-muted-foreground">Usado:</span> {formatTimestamp(d.usadoEn)}</p>}
+                    {d.concedidoHasta && <p><span className="text-muted-foreground">Expira:</span> {formatTimestamp(d.concedidoHasta)}</p>}
+                    {!d.usadoEn && <p className="text-amber-500">No utilizado aún</p>}
+                  </div>
+                  <div className="bg-muted/40 rounded-lg p-2.5">
+                    <p className="text-muted-foreground font-medium mb-1">Duración</p>
+                    <p>{d.duracionHoras} hora(s) de sesión</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

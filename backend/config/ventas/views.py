@@ -387,8 +387,24 @@ class ReporteGerencialView(APIView):
 
     def get(self, request):
         inicio, fin = request.query_params.get('inicio'), request.query_params.get('fin')
+        t = request.user.Miscelanea_id
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM reporte_gerencial(%s, %s)", [inicio, fin])
+            cursor.execute("""
+                SELECT
+                    (SELECT SUM(v."Total") FROM "Venta" v
+                      WHERE v."IdMiscelanea" = %s AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE),
+                    (SELECT AVG(v."Total") FROM "Venta" v
+                      WHERE v."IdMiscelanea" = %s AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE),
+                    (SELECT p."Nombre"
+                       FROM "DetalleVenta" dv
+                       JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
+                       JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                       JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                       JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
+                      WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                        AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
+                      GROUP BY p."Nombre" ORDER BY COUNT(*) DESC LIMIT 1)
+            """, [t, inicio, fin, t, inicio, fin, t, t, inicio, fin])
             row = cursor.fetchone()
         return Response({
             "total_ventas": float(row[0]) if row and row[0] else 0,
@@ -483,7 +499,20 @@ class ProductosPorProveedorView(APIView):
         if not proveedor_id:
             return Response({"error": "Falta proveedorId o proveedor_id"}, status=400)
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM reporte_productos_por_proveedor(%s)", [proveedor_id])
+            t = request.user.Miscelanea_id
+            cursor.execute("""
+                SELECT p."IdProducto" AS id, p."Nombre"::VARCHAR AS producto,
+                       (SELECT COUNT(*) FROM "Inventario" inv
+                          JOIN "DetalleEntradaInventario" d2 ON inv."IdDetalleEntrada" = d2."IdDetalleEntrada"
+                         WHERE d2."IdProducto" = p."IdProducto" AND inv."Estado" = 'Disponible'
+                           AND inv."IdMiscelanea" = %s) AS unidades_disponibles
+                FROM "Producto" p
+                WHERE p."IdMiscelanea" = %s AND EXISTS (
+                    SELECT 1 FROM "DetalleEntradaInventario" dei
+                    JOIN "EntradaInventario" ei ON dei."IdEntradaInventario" = ei."IdEntradaInventario"
+                    WHERE dei."IdProducto" = p."IdProducto" AND ei."IdProveedor" = %s
+                      AND ei."IdMiscelanea" = %s)
+            """, [t, t, proveedor_id, t])
             columns = [col[0] for col in cursor.description]
             result = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return Response(result)
@@ -505,12 +534,27 @@ class ReporteDevolucionesView(APIView):
             with connection.cursor() as cursor:
                 # Unimos los resultados de la función con la tabla de Usuarios para obtener el nombre
                 query = """
-                    SELECT r.*, u."Nombre" as usuario
-                    FROM devoluciones_por_fecha(%s, %s) r
-                    LEFT JOIN "SolicitudDevolucion" s ON r.id_solicitud = s."IdSolicitudDevolucion"
-                    LEFT JOIN "Usuario" u ON s."IdUsuario" = u."IdUsuario"
+                    SELECT sd."IdSolicitudDevolucion" AS id_solicitud,
+                           p."Nombre"::TEXT AS producto,
+                           COUNT(*)::INT AS cantidad,
+                           COALESCE(dsd."MotivoRechazo", '')::TEXT AS motivo,
+                           sd."Fecha"::DATE AS fecha,
+                           sd."Estado"::TEXT AS estado,
+                           u."Nombre" AS usuario
+                    FROM "SolicitudDevolucion" sd
+                    JOIN "DetalleSolicitudDevolucion" dsd ON sd."IdSolicitudDevolucion" = dsd."IdSolicitudDevolucion"
+                    JOIN "Inventario" i ON dsd."IdInventario" = i."IdInventario"
+                    JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                    JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
+                    LEFT JOIN "Usuario" u ON sd."IdUsuario" = u."IdUsuario"
+                    WHERE sd."IdMiscelanea" = %s
+                      AND sd."Fecha" >= %s::DATE
+                      AND sd."Fecha" < (%s::DATE + INTERVAL '1 day')
+                    GROUP BY sd."IdSolicitudDevolucion", p."Nombre", dsd."MotivoRechazo",
+                             sd."Fecha", sd."Estado", u."Nombre"
+                    ORDER BY sd."Fecha"
                 """
-                cursor.execute(query, [inicio, fin])
+                cursor.execute(query, [request.user.Miscelanea_id, inicio, fin])
                 columns = [col[0] for col in cursor.description]
                 # Normalización a minúsculas: El frontend accede a d.producto, d.cantidad, etc.
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
@@ -533,7 +577,24 @@ class ReportePerdidasView(APIView):
             return Response({"error": "Faltan fechas"}, status=400)
         try:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT * FROM perdidas_por_fecha(%s, %s)", [inicio, fin])
+                cursor.execute("""
+                    SELECT pda."IdPerdida" AS id_perdida,
+                           pr."Nombre"::TEXT AS producto,
+                           COUNT(*)::INT AS cantidad,
+                           pda."TipoPerdida"::TEXT AS motivo,
+                           pda."Total" AS total,
+                           pda."Fecha"::DATE AS fecha
+                    FROM "Perdida" pda
+                    JOIN "DetallePerdida" dp ON pda."IdPerdida" = dp."IdPerdida"
+                    JOIN "Inventario" i ON dp."IdInventario" = i."IdInventario"
+                    JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                    JOIN "Producto" pr ON dei."IdProducto" = pr."IdProducto"
+                    WHERE pda."IdMiscelanea" = %s
+                      AND pda."Fecha" >= %s::DATE
+                      AND pda."Fecha" < (%s::DATE + INTERVAL '1 day')
+                    GROUP BY pda."IdPerdida", pr."Nombre", pda."TipoPerdida", pda."Total", pda."Fecha"
+                    ORDER BY pda."Fecha"
+                """, [request.user.Miscelanea_id, inicio, fin])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -571,10 +632,15 @@ class ReporteVentasFiltradasView(APIView):
             with connection.cursor() as cursor:
                 # Normalizar cadena vacía → None → NULL en PostgreSQL
                 estado_param = estado if estado else None
-                cursor.execute(
-                    "SELECT * FROM sp_ventas_filtradas(%s, %s, %s, %s, %s, %s)",
-                    [inicio, fin, estado_param, None, None, None]
-                )
+                cursor.execute("""
+                    SELECT v."IdVenta" AS id_venta, v."Fecha"::DATE AS fecha,
+                           v."Estado"::VARCHAR AS estado, v."Total" AS total
+                    FROM "Venta" v
+                    WHERE v."IdMiscelanea" = %s
+                      AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
+                      AND (%s::VARCHAR IS NULL OR v."Estado" = %s::VARCHAR)
+                    ORDER BY v."Fecha" DESC
+                """, [request.user.Miscelanea_id, inicio, fin, estado_param, estado_param])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -611,10 +677,23 @@ class ReporteTopProductosView(APIView):
             with connection.cursor() as cursor:
                 # LIMIT aplicado directamente en el SQL envolvente,
                 # ya que la función sp_top_productos solo acepta (inicio, fin).
-                cursor.execute(
-                    "SELECT * FROM sp_top_productos(%s, %s) LIMIT %s",
-                    [inicio, fin, limite]
-                )
+                cursor.execute("""
+                    SELECT p."Nombre"::VARCHAR AS nombre_producto,
+                           c."Nombre"::VARCHAR AS categoria,
+                           COUNT(dv."IdDetalleVenta")::BIGINT AS cantidad_vendida,
+                           SUM(dv."PrecioVentaUnitario")::NUMERIC AS ingreso_bruto
+                    FROM "DetalleVenta" dv
+                    JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
+                    JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                    JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                    JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
+                    JOIN "Categoria" c ON p."IdCategoria" = c."IdCategoria"
+                    WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                      AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
+                    GROUP BY p."IdProducto", p."Nombre", c."Nombre"
+                    ORDER BY cantidad_vendida DESC
+                    LIMIT %s
+                """, [request.user.Miscelanea_id, request.user.Miscelanea_id, inicio, fin, limite])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -650,10 +729,22 @@ class ReporteGananciaProductoView(APIView):
             with connection.cursor() as cursor:
                 # Normalizar cadena vacía → None → NULL en SQL
                 producto_id_param = producto_id if producto_id else None
-                cursor.execute(
-                    "SELECT * FROM sp_ganancia_producto(%s, %s, %s)",
-                    [inicio, fin, producto_id_param]
-                )
+                cursor.execute("""
+                    SELECT p."Nombre"::VARCHAR AS nombre_producto,
+                           SUM(dv."PrecioVentaUnitario")::NUMERIC AS total_ventas,
+                           SUM(dei."PrecioCompraUnitario")::NUMERIC AS costo_total,
+                           SUM(dv."PrecioVentaUnitario" - dei."PrecioCompraUnitario")::NUMERIC AS ganancia_bruta
+                    FROM "DetalleVenta" dv
+                    JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
+                    JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                    JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                    JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
+                    WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                      AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
+                      AND (%s::INT IS NULL OR p."IdProducto" = %s::INT)
+                    GROUP BY p."IdProducto", p."Nombre"
+                """, [request.user.Miscelanea_id, request.user.Miscelanea_id, inicio, fin,
+                      producto_id_param, producto_id_param])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -702,10 +793,24 @@ class ReporteComparacionVentasView(APIView):
                 # ::DATE: Cast explícito para garantizar que PostgreSQL interprete
                 # los parámetros como DATE y no como TEXT/TIMESTAMP, evitando
                 # ambigüedad en la resolución de la firma de la función.
-                cursor.execute(
-                    "SELECT * FROM sp_comparar_ventas(%s::DATE, %s::DATE, %s::DATE, %s::DATE)",
-                    [inicio_a, fin_a, inicio_b, fin_b]
-                )
+                t = request.user.Miscelanea_id
+                cursor.execute("""
+                    SELECT
+                      COALESCE((SELECT SUM(v."Total") FROM "Venta" v
+                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                  AND v."Fecha"::DATE BETWEEN %(ia)s::DATE AND %(fa)s::DATE), 0)::NUMERIC AS ventas_a,
+                      COALESCE((SELECT COUNT(dv."IdDetalleVenta") FROM "DetalleVenta" dv
+                                JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
+                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                  AND v."Fecha"::DATE BETWEEN %(ia)s::DATE AND %(fa)s::DATE), 0)::BIGINT AS productos_a,
+                      COALESCE((SELECT SUM(v."Total") FROM "Venta" v
+                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                  AND v."Fecha"::DATE BETWEEN %(ib)s::DATE AND %(fb)s::DATE), 0)::NUMERIC AS ventas_b,
+                      COALESCE((SELECT COUNT(dv."IdDetalleVenta") FROM "DetalleVenta" dv
+                                JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
+                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                  AND v."Fecha"::DATE BETWEEN %(ib)s::DATE AND %(fb)s::DATE), 0)::BIGINT AS productos_b
+                """, {'t': t, 'ia': inicio_a, 'fa': fin_a, 'ib': inicio_b, 'fb': fin_b})
                 columns = [col[0] for col in cursor.description]
                 # Normalizar a minúsculas: El frontend accede a d.ventas_a, d.productos_b, etc.
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
