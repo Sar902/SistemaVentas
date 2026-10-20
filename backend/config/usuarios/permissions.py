@@ -56,6 +56,8 @@ def module_for_view(view):
         return 'AUDITORIA'
     if 'usuario' in name or 'branding' in name:
         return 'USUARIOS'
+    if 'reporte' in name or name == 'productosporproveedorview':
+        return 'REPORTES'
     if any(word in name for word in ('inventario', 'perdida', 'compras', 'devolucion', 'stock')):
         return 'INVENTARIO' if 'inventario' in name or 'compras' in name else (
             'PERDIDAS' if 'perdida' in name else 'DEVOLUCIONES'
@@ -170,7 +172,4 @@ class CanProcessSale(permissions.BasePermission):
 
         # Uso de `in` para verificar pertenencia al conjunto de roles autorizados.
         # Es más limpio y extensible que dos comparaciones == separadas.
-        return (
-            getattr(request.user, 'Rol', None) in ('admin', 'cajero', 'vendedor')
-            and has_module_access(request.user, 'VENTAS')
-        )
+        return getattr(request.user, 'Rol', None) in ('admin', 'cajero', 'vendedor')
