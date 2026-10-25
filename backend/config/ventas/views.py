@@ -24,6 +24,9 @@ NORMALIZACIÓN DE CLAVES (k.lower()):
     snake_case en minúsculas (ej: 'total_ventas', no 'Total_Ventas').
 """
 
+import logging
+from decimal import Decimal
+
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -36,19 +39,63 @@ from django.db.models.functions import TruncDate
 
 from .models import Venta, DetalleVenta
 from catalogo.models import Producto, Proveedor
-from inventario.models import Inventario, Perdida
-from usuarios.models import Usuario
+from inventario.models import (
+    DetalleEntradaInventario,
+    EntradaInventario,
+    Inventario,
+    Perdida,
+)
 from usuarios.permissions import IsAdminRole, IsAdminOrReadOnly, CanProcessSale
 from .serializers import VentaSerializer, DetalleVentaSerializer
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from usuarios.tenant import TenantScopedViewSet
 
 
+logger = logging.getLogger(__name__)
+
+
+class AnulacionInvalida(Exception):
+    """Error de negocio seguro al rechazar una anulación."""
+
+
+def _preleer_referencias_venta(ids_inventario, tenant_id):
+    """Obtiene los padres que se bloquearán; no valida la venta definitivamente."""
+    referencias_unidad = list(
+        Inventario.objects.filter(
+            IdInventario__in=ids_inventario,
+            Miscelanea_id=tenant_id,
+        )
+        .order_by('IdInventario')
+        .values_list('IdInventario', 'IdDetalleEntrada_id')
+    )
+    if len(referencias_unidad) != len(ids_inventario):
+        raise ValueError(
+            'Todas las unidades deben existir y pertenecer a la miscelánea.'
+        )
+
+    detalle_por_unidad = dict(referencias_unidad)
+    ids_detalle = sorted(set(detalle_por_unidad.values()))
+    referencias_detalle = list(
+        DetalleEntradaInventario.objects.filter(
+            IdDetalleEntrada__in=ids_detalle,
+            Miscelanea_id=tenant_id,
+        )
+        .order_by('IdDetalleEntrada')
+        .values_list('IdDetalleEntrada', 'IdEntradaInventario_id')
+    )
+    if len(referencias_detalle) != len(ids_detalle):
+        raise ValueError(
+            'La unidad seleccionada tiene relaciones inconsistentes.'
+        )
+
+    return detalle_por_unidad, dict(referencias_detalle)
+
+
 # ─── VIEWSETS CRUD ────────────────────────────────────────────────────────────
 
-class VentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class VentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     """
-    CRUD estándar para el modelo Venta.
+    Consulta de ventas; las escrituras se realizan por operaciones dedicadas.
 
     pagination_class = None: Se desactiva para que el historial completo
     sea accesible en una sola petición. El frontend pagina visualmente.
@@ -64,9 +111,9 @@ class VentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
     MODULO_AUDITORIA = 'VENTAS'
 
 
-class DetalleVentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class DetalleVentaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ReadOnlyModelViewSet):
     """
-    CRUD para detalles individuales de venta.
+    Consulta de detalles individuales de venta.
 
     Restringido a IsAdminRole porque modificar detalles de venta directamente
     (sin pasar por ProcesarVentaView) podría dejar el inventario inconsistente.
@@ -113,47 +160,157 @@ class ProcesarVentaView(APIView):
         ocurra antes de registrar el error en auditoría (si no, la transacción
         dañada impide escribir y el cliente recibe un 500 sin mensaje).
         """
-        usuario_id = request.data.get('usuarioId')
+        if request.user.Miscelanea_id is None:
+            return Response(
+                {'detail': 'La cuenta no tiene una miscelánea asignada.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         fecha = request.data.get('fecha')
-        total = request.data.get('total')
         detalles = request.data.get('detalles', [])
 
         try:
             if not detalles:
                 raise ValueError('La venta no tiene productos.')
+            ids_inventario = [detalle.get('inventarioId') for detalle in detalles]
+            if len(ids_inventario) != len(set(ids_inventario)):
+                raise ValueError('No se puede repetir una unidad en la venta.')
             with transaction.atomic():
-                usuario = Usuario.objects.get(
-                    IdUsuario=usuario_id or request.user.IdUsuario,
-                    Miscelanea_id=request.user.Miscelanea_id,
+                (
+                    detalle_preleido_por_unidad,
+                    entrada_preleida_por_detalle,
+                ) = _preleer_referencias_venta(
+                    ids_inventario,
+                    request.user.Miscelanea_id,
                 )
-                venta = Venta.objects.create(
-                    IdUsuario=usuario,
-                    Miscelanea_id=request.user.Miscelanea_id,
-                    Fecha=fecha,
-                    Total=total,
-                )
-                for d in detalles:
-                    inv_id = d.get('inventarioId')
-                    precio = d.get('precioVentaUnitario')
-                    # select_for_update(): bloquea la fila hasta terminar la transacción,
-                    # evitando vender la misma unidad desde dos dispositivos a la vez.
-                    inventario = Inventario.objects.select_for_update().get(
-                        IdInventario=inv_id,
+
+                ids_entrada = sorted(set(entrada_preleida_por_detalle.values()))
+                entradas = list(
+                    EntradaInventario.objects.select_for_update(of=('self',))
+                    .select_related('IdProveedor')
+                    .filter(
+                        IdEntradaInventario__in=ids_entrada,
                         Miscelanea_id=request.user.Miscelanea_id,
                     )
+                    .order_by('IdEntradaInventario')
+                )
+                entradas_por_id = {
+                    entrada.IdEntradaInventario: entrada for entrada in entradas
+                }
+                if set(entradas_por_id) != set(ids_entrada) or any(
+                    entrada.IdProveedor.Miscelanea_id
+                    != request.user.Miscelanea_id
+                    for entrada in entradas
+                ):
+                    raise ValueError(
+                        'La unidad seleccionada tiene relaciones inconsistentes.'
+                    )
+
+                ids_detalle = sorted(entrada_preleida_por_detalle)
+                detalles_compra = list(
+                    DetalleEntradaInventario.objects.select_for_update(
+                        of=('self',)
+                    )
+                    .select_related(
+                        'IdEntradaInventario',
+                        'IdEntradaInventario__IdProveedor',
+                        'IdProducto',
+                        'IdProducto__IdCategoria',
+                    )
+                    .filter(
+                        IdDetalleEntrada__in=ids_detalle,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                    )
+                    .order_by('IdDetalleEntrada')
+                )
+                detalles_compra_por_id = {
+                    detalle.IdDetalleEntrada: detalle
+                    for detalle in detalles_compra
+                }
+                if set(detalles_compra_por_id) != set(ids_detalle):
+                    raise ValueError(
+                        'La unidad seleccionada tiene relaciones inconsistentes.'
+                    )
+                for detalle_compra in detalles_compra:
+                    entrada_id = entrada_preleida_por_detalle.get(
+                        detalle_compra.IdDetalleEntrada
+                    )
+                    if (
+                        detalle_compra.IdEntradaInventario_id != entrada_id
+                        or entrada_id not in entradas_por_id
+                        or detalle_compra.IdEntradaInventario.Miscelanea_id
+                        != request.user.Miscelanea_id
+                        or detalle_compra.IdEntradaInventario.IdProveedor.Miscelanea_id
+                        != request.user.Miscelanea_id
+                        or detalle_compra.IdProducto.Miscelanea_id
+                        != request.user.Miscelanea_id
+                        or detalle_compra.IdProducto.IdCategoria.Miscelanea_id
+                        != request.user.Miscelanea_id
+                    ):
+                        raise ValueError(
+                            'La unidad seleccionada tiene relaciones inconsistentes.'
+                        )
+
+                inventarios = list(
+                    Inventario.objects.select_for_update(of=('self',))
+                    .filter(
+                        IdInventario__in=ids_inventario,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                    )
+                    .order_by('IdInventario')
+                )
+                inventarios_por_id = {
+                    inventario.IdInventario: inventario
+                    for inventario in inventarios
+                }
+                if set(inventarios_por_id) != set(ids_inventario):
+                    raise ValueError(
+                        'Todas las unidades deben existir y pertenecer a la miscelánea.'
+                    )
+                for inventario in inventarios:
+                    detalle_id = detalle_preleido_por_unidad.get(
+                        inventario.IdInventario
+                    )
+                    if (
+                        inventario.IdDetalleEntrada_id != detalle_id
+                        or detalle_id not in detalles_compra_por_id
+                    ):
+                        raise ValueError(
+                            'La unidad seleccionada tiene relaciones inconsistentes.'
+                        )
                     if inventario.Estado != 'Disponible':
                         raise ValueError(
                             'Uno de los productos ya fue vendido desde otro dispositivo. '
                             'Se actualizó el inventario, intenta de nuevo.'
                         )
+
+                venta = Venta.objects.create(
+                    IdUsuario=request.user,
+                    Miscelanea_id=request.user.Miscelanea_id,
+                    Fecha=fecha,
+                    Total=Decimal('0.00'),
+                )
+                total_calculado = Decimal('0.00')
+                for d in detalles:
+                    inv_id = d.get('inventarioId')
+                    inventario = inventarios_por_id[inv_id]
+                    detalle_compra = detalles_compra_por_id[
+                        inventario.IdDetalleEntrada_id
+                    ]
+                    precio = Decimal(str(
+                        detalle_compra.IdProducto.calcular_precio_venta()
+                    ))
                     DetalleVenta.objects.create(
                         IdVenta=venta,
                         IdInventario=inventario,
                         Miscelanea_id=request.user.Miscelanea_id,
                         PrecioVentaUnitario=precio
                     )
+                    total_calculado += precio
                     inventario.Estado = "Vendido"
                     inventario.save()
+                venta.Total = total_calculado
+                venta.save(update_fields=['Total'])
                 registrar_evento_manual(
                     request=request,
                     accion='PROCESAR',
@@ -161,7 +318,7 @@ class ProcesarVentaView(APIView):
                     descripcion=f'Venta #{venta.IdVenta} procesada por {request.user.Nombre}.',
                     datos_nuevos={
                         'id_venta': venta.IdVenta,
-                        'usuario_id': usuario.IdUsuario,
+                        'usuario_id': request.user.IdUsuario,
                         'total': str(venta.Total),
                         'cantidad_detalles': len(detalles),
                     },
@@ -199,7 +356,6 @@ class AnularVentaView(APIView):
     """
     permission_classes = [IsAuthenticated, IsAdminRole]
 
-    @transaction.atomic
     def post(self, request, pk):
         """
         Anula la venta con ID=pk y revierte el inventario.
@@ -213,56 +369,108 @@ class AnularVentaView(APIView):
         Returns:
             Response: 200 OK si exitoso. 404 si no existe. 400 si ya estaba anulada.
         """
+        if request.user.Miscelanea_id is None:
+            return Response(
+                {'detail': 'La cuenta no tiene una miscelánea asignada.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         try:
-            # select_for_update en la Venta: Evita dos anulaciones simultáneas
-            venta = Venta.objects.select_for_update().get(
-                pk=pk,
-                Miscelanea_id=request.user.Miscelanea_id,
+            with transaction.atomic():
+                # El bloqueo de la venta serializa dos anulaciones simultáneas.
+                venta = Venta.objects.select_for_update().get(
+                    pk=pk,
+                    Miscelanea_id=request.user.Miscelanea_id,
+                )
+                if venta.Estado != 'Completada':
+                    raise AnulacionInvalida(
+                        "Solo se pueden anular ventas completadas."
+                    )
+
+                detalles = list(
+                    DetalleVenta.objects.select_for_update()
+                    .filter(
+                        IdVenta=venta,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                    )
+                    .order_by('IdDetalleVenta')
+                )
+                if not detalles:
+                    raise AnulacionInvalida(
+                        "La venta no tiene unidades que se puedan restituir."
+                    )
+
+                ids_inventario = [
+                    detalle.IdInventario_id for detalle in detalles
+                ]
+                if len(ids_inventario) != len(set(ids_inventario)):
+                    raise AnulacionInvalida(
+                        "La venta contiene referencias de inventario duplicadas."
+                    )
+
+                inventarios = list(
+                    Inventario.objects.select_for_update()
+                    .filter(
+                        IdInventario__in=ids_inventario,
+                        Miscelanea_id=request.user.Miscelanea_id,
+                    )
+                    .order_by('IdInventario')
+                )
+                inventarios_por_id = {
+                    inventario.IdInventario: inventario
+                    for inventario in inventarios
+                }
+                if (
+                    len(inventarios_por_id) != len(ids_inventario)
+                    or any(
+                        inventarios_por_id[inventario_id].Estado != 'Vendido'
+                        for inventario_id in ids_inventario
+                        if inventario_id in inventarios_por_id
+                    )
+                ):
+                    raise AnulacionInvalida(
+                        "No se pudo restituir el inventario de la venta."
+                    )
+
+                fecha_movimiento = timezone.now()
+                for inventario in inventarios:
+                    inventario.Estado = 'Disponible'
+                    inventario.FechaMovimiento = fecha_movimiento
+                    inventario.save(update_fields=['Estado', 'FechaMovimiento'])
+
+                venta.Estado = 'Anulada'
+                venta.save(update_fields=['Estado'])
+
+                registrar_evento_manual(
+                    request=request,
+                    accion='ANULAR',
+                    modulo='VENTAS',
+                    descripcion=f'Venta #{pk} anulada por {getattr(request.user, "Nombre", "Admin")}. Stock revertido.',
+                    datos_anteriores={'estado': 'Completada', 'id_venta': pk},
+                    datos_nuevos={'estado': 'Anulada', 'id_venta': pk},
+                )
+
+            return Response(
+                {"message": f"Venta #{pk} anulada correctamente. Stock revertido."},
+                status=status.HTTP_200_OK,
             )
         except Venta.DoesNotExist:
-            return Response({"error": "Venta no encontrada."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Verificación de idempotencia: No se puede anular dos veces
-        if venta.Estado == 'Anulada':
             return Response(
-                {"error": "Esta venta ya fue anulada previamente."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Venta no encontrada."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-
-        # Revertir stock: cada unidad de inventario vuelve a 'Disponible'
-        # select_related('IdInventario'): Optimización — obtiene el inventario
-        # relacionado en el mismo query, evitando N queries adicionales.
-        detalles = DetalleVenta.objects.filter(
-            IdVenta=venta,
-            Miscelanea_id=request.user.Miscelanea_id,
-        ).select_related('IdInventario')
-        for detalle in detalles:
-            inventario = Inventario.objects.select_for_update().get(
-                IdInventario=detalle.IdInventario_id,
-                Miscelanea_id=request.user.Miscelanea_id,
+        except AnulacionInvalida as exc:
+            logger.warning("Anulación de venta rechazada: %s", exc)
+            return Response(
+                {"error": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            inventario.Estado = 'Disponible'
-            # Actualizar FechaMovimiento para el registro de auditoría
-            inventario.FechaMovimiento = timezone.now()
-            inventario.save()
-
-        venta.Estado = 'Anulada'
-        venta.save()
-
-        # Registrar la anulación en el log de auditoría
-        registrar_evento_manual(
-            request=request,
-            accion='ANULAR',
-            modulo='VENTAS',
-            descripcion=f'Venta #{pk} anulada por {getattr(request.user, "Nombre", "Admin")}. Stock revertido.',
-            datos_anteriores={'estado': 'Completada', 'id_venta': pk},
-            datos_nuevos={'estado': 'Anulada', 'id_venta': pk},
-        )
-
-        return Response(
-            {"message": f"Venta #{pk} anulada correctamente. Stock revertido."},
-            status=status.HTTP_200_OK
-        )
+        except Exception:
+            logger.exception("Error interno al anular la venta %s", pk)
+            return Response(
+                {"error": "No se pudo anular la venta."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 # ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -290,6 +498,17 @@ class DashboardStatsView(APIView):
             Response: JSON con métricas de los últimos 7 días, productos con
                       stock bajo, ventas recientes y datos para el gráfico.
         """
+        if request.user.Miscelanea_id is None:
+            return Response({
+                "totalProducts": 0,
+                "weeklySales": 0.0,
+                "totalProveedores": 0,
+                "lowStockItems": [],
+                "recentSales": [],
+                "weeklyLosses": 0.0,
+                "chartData": [{"date": "Hoy", "total": 0}],
+            })
+
         now = timezone.now()
         seven_days_ago = now - timedelta(days=7)
 
@@ -306,7 +525,10 @@ class DashboardStatsView(APIView):
         # annotate(): Añade el campo calculado 'stock' a cada Producto del queryset.
         # Count con filter(): Equivale a COUNT(CASE WHEN Estado='Disponible' THEN 1 END) en SQL.
         # detalleentradainventario__inventarios: Navegación de FK a través de related_name.
-        low_stock_qs = Producto.objects.filter(Miscelanea_id=tenant_id).annotate(
+        low_stock_qs = Producto.objects.filter(
+            Miscelanea_id=tenant_id,
+            IdCategoria__Miscelanea_id=tenant_id,
+        ).annotate(
             stock=Count(
                 'detalleentradainventario__inventarios',
                 filter=Q(
@@ -331,7 +553,13 @@ class DashboardStatsView(APIView):
         recent_sales = [{
             "id": v.IdVenta,
             "time": v.Fecha.strftime("%I:%M %p"),
-            "items": v.detalles.count(),  # Usa related_name='detalles'
+            "items": v.detalles.filter(
+                Miscelanea_id=tenant_id,
+                IdInventario__Miscelanea_id=tenant_id,
+                IdInventario__IdDetalleEntrada__Miscelanea_id=tenant_id,
+                IdInventario__IdDetalleEntrada__IdEntradaInventario__Miscelanea_id=tenant_id,
+                IdInventario__IdDetalleEntrada__IdProducto__Miscelanea_id=tenant_id,
+            ).count(),
             "total": float(v.Total)
         } for v in recent_sales_qs]
 
@@ -397,10 +625,18 @@ class ReporteGerencialView(APIView):
                        JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
                        JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
                        JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
-                      WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                      WHERE dv."IdMiscelanea" = %s
+                        AND v."IdMiscelanea" = %s
+                        AND i."IdMiscelanea" = %s
+                        AND dei."IdMiscelanea" = %s
+                        AND p."IdMiscelanea" = %s
                         AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
                       GROUP BY p."Nombre" ORDER BY COUNT(*) DESC LIMIT 1)
-            """, [t, inicio, fin, t, inicio, fin, t, t, inicio, fin])
+            """, [
+                t, inicio, fin,
+                t, inicio, fin,
+                t, t, t, t, t, inicio, fin,
+            ])
             row = cursor.fetchone()
         return Response({
             "total_ventas": float(row[0]) if row and row[0] else 0,
@@ -501,14 +737,19 @@ class ProductosPorProveedorView(APIView):
                        (SELECT COUNT(*) FROM "Inventario" inv
                           JOIN "DetalleEntradaInventario" d2 ON inv."IdDetalleEntrada" = d2."IdDetalleEntrada"
                          WHERE d2."IdProducto" = p."IdProducto" AND inv."Estado" = 'Disponible'
-                           AND inv."IdMiscelanea" = %s) AS unidades_disponibles
+                           AND inv."IdMiscelanea" = %(t)s
+                           AND d2."IdMiscelanea" = %(t)s) AS unidades_disponibles
                 FROM "Producto" p
-                WHERE p."IdMiscelanea" = %s AND EXISTS (
+                WHERE p."IdMiscelanea" = %(t)s AND EXISTS (
                     SELECT 1 FROM "DetalleEntradaInventario" dei
                     JOIN "EntradaInventario" ei ON dei."IdEntradaInventario" = ei."IdEntradaInventario"
-                    WHERE dei."IdProducto" = p."IdProducto" AND ei."IdProveedor" = %s
-                      AND ei."IdMiscelanea" = %s)
-            """, [t, t, proveedor_id, t])
+                    JOIN "Proveedor" pr ON ei."IdProveedor" = pr."IdProveedor"
+                    WHERE dei."IdProducto" = p."IdProducto"
+                      AND dei."IdMiscelanea" = %(t)s
+                      AND ei."IdMiscelanea" = %(t)s
+                      AND pr."IdMiscelanea" = %(t)s
+                      AND ei."IdProveedor" = %(provider)s)
+            """, {'t': t, 'provider': proveedor_id})
             columns = [col[0] for col in cursor.description]
             result = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return Response(result)
@@ -541,16 +782,28 @@ class ReporteDevolucionesView(APIView):
                     JOIN "DetalleSolicitudDevolucion" dsd ON sd."IdSolicitudDevolucion" = dsd."IdSolicitudDevolucion"
                     JOIN "Inventario" i ON dsd."IdInventario" = i."IdInventario"
                     JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
+                    JOIN "EntradaInventario" ei ON sd."IdEntradaInventario" = ei."IdEntradaInventario"
                     JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
                     LEFT JOIN "Usuario" u ON sd."IdUsuario" = u."IdUsuario"
-                    WHERE sd."IdMiscelanea" = %s
-                      AND sd."Fecha" >= %s::DATE
-                      AND sd."Fecha" < (%s::DATE + INTERVAL '1 day')
+                      AND u."IdMiscelanea" = %(t)s
+                    WHERE sd."IdMiscelanea" = %(t)s
+                      AND dsd."IdMiscelanea" = %(t)s
+                      AND i."IdMiscelanea" = %(t)s
+                      AND dei."IdMiscelanea" = %(t)s
+                      AND ei."IdMiscelanea" = %(t)s
+                      AND p."IdMiscelanea" = %(t)s
+                      AND dei."IdEntradaInventario" = ei."IdEntradaInventario"
+                      AND sd."Fecha" >= %(inicio)s::DATE
+                      AND sd."Fecha" < (%(fin)s::DATE + INTERVAL '1 day')
                     GROUP BY sd."IdSolicitudDevolucion", p."Nombre", dsd."MotivoRechazo",
                              sd."Fecha", sd."Estado", u."Nombre"
                     ORDER BY sd."Fecha"
                 """
-                cursor.execute(query, [request.user.Miscelanea_id, inicio, fin])
+                cursor.execute(query, {
+                    't': request.user.Miscelanea_id,
+                    'inicio': inicio,
+                    'fin': fin,
+                })
                 columns = [col[0] for col in cursor.description]
                 # Normalización a minúsculas: El frontend accede a d.producto, d.cantidad, etc.
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
@@ -585,12 +838,20 @@ class ReportePerdidasView(APIView):
                     JOIN "Inventario" i ON dp."IdInventario" = i."IdInventario"
                     JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
                     JOIN "Producto" pr ON dei."IdProducto" = pr."IdProducto"
-                    WHERE pda."IdMiscelanea" = %s
-                      AND pda."Fecha" >= %s::DATE
-                      AND pda."Fecha" < (%s::DATE + INTERVAL '1 day')
+                    WHERE pda."IdMiscelanea" = %(t)s
+                      AND dp."IdMiscelanea" = %(t)s
+                      AND i."IdMiscelanea" = %(t)s
+                      AND dei."IdMiscelanea" = %(t)s
+                      AND pr."IdMiscelanea" = %(t)s
+                      AND pda."Fecha" >= %(inicio)s::DATE
+                      AND pda."Fecha" < (%(fin)s::DATE + INTERVAL '1 day')
                     GROUP BY pda."IdPerdida", pr."Nombre", pda."TipoPerdida", pda."Total", pda."Fecha"
                     ORDER BY pda."Fecha"
-                """, [request.user.Miscelanea_id, inicio, fin])
+                """, {
+                    't': request.user.Miscelanea_id,
+                    'inicio': inicio,
+                    'fin': fin,
+                })
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -684,12 +945,27 @@ class ReporteTopProductosView(APIView):
                     JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
                     JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
                     JOIN "Categoria" c ON p."IdCategoria" = c."IdCategoria"
-                    WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                    WHERE dv."IdMiscelanea" = %s
+                      AND v."IdMiscelanea" = %s
+                      AND i."IdMiscelanea" = %s
+                      AND dei."IdMiscelanea" = %s
+                      AND p."IdMiscelanea" = %s
+                      AND c."IdMiscelanea" = %s
                       AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
                     GROUP BY p."IdProducto", p."Nombre", c."Nombre"
                     ORDER BY cantidad_vendida DESC
                     LIMIT %s
-                """, [request.user.Miscelanea_id, request.user.Miscelanea_id, inicio, fin, limite])
+                """, [
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    inicio,
+                    fin,
+                    limite,
+                ])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -735,12 +1011,25 @@ class ReporteGananciaProductoView(APIView):
                     JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
                     JOIN "DetalleEntradaInventario" dei ON i."IdDetalleEntrada" = dei."IdDetalleEntrada"
                     JOIN "Producto" p ON dei."IdProducto" = p."IdProducto"
-                    WHERE v."IdMiscelanea" = %s AND p."IdMiscelanea" = %s
+                    WHERE dv."IdMiscelanea" = %s
+                      AND v."IdMiscelanea" = %s
+                      AND i."IdMiscelanea" = %s
+                      AND dei."IdMiscelanea" = %s
+                      AND p."IdMiscelanea" = %s
                       AND v."Fecha"::DATE BETWEEN %s::DATE AND %s::DATE
                       AND (%s::INT IS NULL OR p."IdProducto" = %s::INT)
                     GROUP BY p."IdProducto", p."Nombre"
-                """, [request.user.Miscelanea_id, request.user.Miscelanea_id, inicio, fin,
-                      producto_id_param, producto_id_param])
+                """, [
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    request.user.Miscelanea_id,
+                    inicio,
+                    fin,
+                    producto_id_param,
+                    producto_id_param,
+                ])
                 columns = [col[0] for col in cursor.description]
                 result = [{k.lower(): v for k, v in zip(columns, row)} for row in cursor.fetchall()]
             return Response(result)
@@ -797,14 +1086,22 @@ class ReporteComparacionVentasView(APIView):
                                   AND v."Fecha"::DATE BETWEEN %(ia)s::DATE AND %(fa)s::DATE), 0)::NUMERIC AS ventas_a,
                       COALESCE((SELECT COUNT(dv."IdDetalleVenta") FROM "DetalleVenta" dv
                                 JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
-                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                                WHERE dv."IdMiscelanea" = %(t)s
+                                  AND v."IdMiscelanea" = %(t)s
+                                  AND i."IdMiscelanea" = %(t)s
+                                  AND v."Estado" = 'Completada'
                                   AND v."Fecha"::DATE BETWEEN %(ia)s::DATE AND %(fa)s::DATE), 0)::BIGINT AS productos_a,
                       COALESCE((SELECT SUM(v."Total") FROM "Venta" v
                                 WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
                                   AND v."Fecha"::DATE BETWEEN %(ib)s::DATE AND %(fb)s::DATE), 0)::NUMERIC AS ventas_b,
                       COALESCE((SELECT COUNT(dv."IdDetalleVenta") FROM "DetalleVenta" dv
                                 JOIN "Venta" v ON dv."IdVenta" = v."IdVenta"
-                                WHERE v."IdMiscelanea" = %(t)s AND v."Estado" = 'Completada'
+                                JOIN "Inventario" i ON dv."IdInventario" = i."IdInventario"
+                                WHERE dv."IdMiscelanea" = %(t)s
+                                  AND v."IdMiscelanea" = %(t)s
+                                  AND i."IdMiscelanea" = %(t)s
+                                  AND v."Estado" = 'Completada'
                                   AND v."Fecha"::DATE BETWEEN %(ib)s::DATE AND %(fb)s::DATE), 0)::BIGINT AS productos_b
                 """, {'t': t, 'ia': inicio_a, 'fa': fin_a, 'ib': inicio_b, 'fb': fin_b})
                 columns = [col[0] for col in cursor.description]

@@ -37,16 +37,57 @@ AUDITORÍA:
     y registra el log en la tabla LogAuditoria. Los GETs no se registran.
 """
 
-from rest_framework import viewsets
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import RestrictedError
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from usuarios.permissions import IsAdminOrReadOnly
 from auditoria.mixins import AuditoriaMixin
 from usuarios.tenant import TenantScopedViewSet
 from .models import Categoria, Proveedor, Producto
 from .serializers import CategoriaSerializer, ProveedorSerializer, ProductoSerializer
+from .codigos import (
+    limpiar_y_validar_codigo_producto,
+    variantes_equivalentes_codigo_producto,
+)
 
 
-class CategoriaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class CatalogoWriteSafetyMixin:
+    """Aplica las guardias de escritura comunes al catálogo."""
+
+    def create(self, request, *args, **kwargs):
+        if request.user.Miscelanea_id is None:
+            return Response(
+                {'detail': 'La cuenta no tiene una miscelánea asignada.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().destroy(request, *args, **kwargs)
+        except RestrictedError:
+            return Response(
+                {
+                    'detail': (
+                        'No se puede eliminar porque el registro tiene '
+                        'datos relacionados.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+
+class CategoriaViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Categoria.
 
@@ -63,7 +104,12 @@ class CategoriaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSe
     MODULO_AUDITORIA = 'CATEGORIAS'
 
 
-class ProveedorViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class ProveedorViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Proveedor.
 
@@ -78,7 +124,12 @@ class ProveedorViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSe
     MODULO_AUDITORIA = 'PROVEEDORES'
 
 
-class ProductoViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class ProductoViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Producto.
 
@@ -93,3 +144,79 @@ class ProductoViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
     pagination_class = None
     MODULO_AUDITORIA = 'PRODUCTOS'
+
+    @staticmethod
+    def _codigo_duplicado_response():
+        return Response(
+            {'code': ['Ya existe un producto con este código en esta miscelánea.']},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @staticmethod
+    def _constraint_name(error):
+        cause = getattr(error, '__cause__', None)
+        return getattr(getattr(cause, 'diag', None), 'constraint_name', None)
+
+    def create(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().create(request, *args, **kwargs)
+        except IntegrityError as error:
+            if self._constraint_name(error) == 'unique_codigo_producto_por_miscelanea':
+                return self._codigo_duplicado_response()
+            return Response(
+                {'detail': 'No se pudo crear el producto por un conflicto de datos.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+    def update(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().update(request, *args, **kwargs)
+        except IntegrityError as error:
+            if self._constraint_name(error) == 'unique_codigo_producto_por_miscelanea':
+                return self._codigo_duplicado_response()
+            return Response(
+                {'detail': 'No se pudo actualizar el producto por un conflicto de datos.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+    @action(detail=False, methods=['get'], url_path='buscar-codigo')
+    def buscar_codigo(self, request):
+        try:
+            codigo = limpiar_y_validar_codigo_producto(
+                request.query_params.get('codigo')
+            )
+        except DjangoValidationError as error:
+            return Response(
+                {'code': list(error.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if codigo is None:
+            return Response(
+                {'code': ['Ingresa un código para buscar.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        productos = list(
+            self.get_queryset()
+            .filter(Codigo__in=variantes_equivalentes_codigo_producto(codigo))
+            .order_by('IdProducto')[:2]
+        )
+        if not productos:
+            return Response(
+                {'detail': 'No se encontró un producto con ese código.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if len(productos) > 1:
+            return Response(
+                {
+                    'detail': (
+                        'El código coincide con más de un producto por la '
+                        'equivalencia UPC-A/EAN-13. Corrige los códigos del '
+                        'catálogo antes de continuar.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(self.get_serializer(productos[0]).data)

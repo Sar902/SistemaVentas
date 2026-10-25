@@ -22,11 +22,15 @@ CAMPOS CALCULADOS vs. CAMPOS ALMACENADOS:
 
 from rest_framework import serializers
 from .models import Categoria, Proveedor, Producto
-from inventario.models import EntradaInventario, Inventario, DetalleEntradaInventario
+from inventario.models import EntradaInventario, Inventario
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Avg
 from usuarios.tenant import TenantPrimaryKeyRelatedField
+from .codigos import (
+    limpiar_y_validar_codigo_producto,
+    variantes_equivalentes_codigo_producto,
+)
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -66,7 +70,9 @@ class CategoriaSerializer(serializers.ModelSerializer):
         Returns:
             int: Número de productos en esta categoría.
         """
-        return obj.producto_set.count()
+        return obj.producto_set.filter(
+            Miscelanea_id=obj.Miscelanea_id,
+        ).count()
 
     def validate_name(self, value):
         nombre_limpio = value.strip()
@@ -154,17 +160,24 @@ class ProveedorSerializer(serializers.ModelSerializer):
         hace_30_dias = timezone.now() - timedelta(days=30)
         return EntradaInventario.objects.filter(
             IdProveedor=obj,
+            Miscelanea_id=obj.Miscelanea_id,
             FechaEntrada__gte=hace_30_dias
         ).count()
 
     def get_activo(self, obj):
-        return EntradaInventario.objects.filter(IdProveedor=obj).exists()
+        return EntradaInventario.objects.filter(
+            IdProveedor=obj,
+            Miscelanea_id=obj.Miscelanea_id,
+        ).exists()
 
     def get_tiene_productos(self, obj):
         """
         Determina si el proveedor tiene al menos un producto asignado en el catálogo.
         """
-        return Producto.objects.filter(IdProveedor=obj).exists()
+        return Producto.objects.filter(
+            IdProveedor=obj,
+            Miscelanea_id=obj.Miscelanea_id,
+        ).exists()
 
 
 class ProductoSerializer(serializers.ModelSerializer):
@@ -192,6 +205,14 @@ class ProductoSerializer(serializers.ModelSerializer):
     # NUEVO: Campos para proveedor y presentación (Proveedor obligatorio)
     proveedorId = TenantPrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=True, allow_null=False)
     presentacion = serializers.CharField(source='Presentacion', required=False, allow_null=True, allow_blank=True)
+    code = serializers.CharField(
+        source='Codigo',
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        trim_whitespace=False,
+        validators=[],
+    )
     status = serializers.CharField(source='Estado', required=False)
     imagen = serializers.CharField(source='Imagen', required=False, allow_null=True, allow_blank=True)
     stock = serializers.SerializerMethodField()
@@ -199,7 +220,7 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Producto
-        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion', 'imagen']
+        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion', 'code', 'imagen']
 
     def validate_name(self, value):
         nombre_limpio = value.strip()
@@ -224,6 +245,29 @@ class ProductoSerializer(serializers.ModelSerializer):
 
         return nombre_limpio
 
+    def validate_code(self, value):
+        codigo = limpiar_y_validar_codigo_producto(value)
+        if codigo is None:
+            return None
+
+        request = self.context.get('request')
+        miscelanea_id = getattr(self.instance, 'Miscelanea_id', None)
+        if miscelanea_id is None and request:
+            miscelanea_id = getattr(getattr(request, 'user', None), 'Miscelanea_id', None)
+
+        qs = Producto.objects.filter(
+            Miscelanea_id=miscelanea_id,
+            Codigo__in=variantes_equivalentes_codigo_producto(codigo),
+        )
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                'Ya existe un producto con este código o con su equivalente '
+                'UPC-A/EAN-13 en esta miscelánea.'
+            )
+        return codigo
+
     def get_stock(self, obj):
         """
         Calcula el stock disponible contando unidades físicas en estado 'Disponible'.
@@ -240,6 +284,10 @@ class ProductoSerializer(serializers.ModelSerializer):
         """
         return Inventario.objects.filter(
             IdDetalleEntrada__IdProducto=obj,
+            Miscelanea_id=obj.Miscelanea_id,
+            IdDetalleEntrada__Miscelanea_id=obj.Miscelanea_id,
+            IdDetalleEntrada__IdEntradaInventario__Miscelanea_id=obj.Miscelanea_id,
+            IdDetalleEntrada__IdEntradaInventario__IdProveedor__Miscelanea_id=obj.Miscelanea_id,
             Estado='Disponible'
         ).count()
 
@@ -248,17 +296,4 @@ class ProductoSerializer(serializers.ModelSerializer):
         Calcula el precio de venta usando el costo de compra del lote más reciente
         y el porcentaje de ganancia de la categoría.
         """
-        ultimo_detalle = DetalleEntradaInventario.objects.filter(
-            IdProducto=obj
-        ).order_by('-IdDetalleEntrada').first()
-
-        # Si no hay compras, usar 0
-        base_price = float(ultimo_detalle.PrecioCompraUnitario) if ultimo_detalle else 0.0
-
-        # Porcentaje de ganancia de la categoría
-        profit = float(obj.IdCategoria.PorcentajeGanancia)
-
-        # Precio final
-        return int(round(base_price * (1 + (profit / 100))))
-    
-    
+        return obj.calcular_precio_venta()

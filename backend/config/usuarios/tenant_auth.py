@@ -1,5 +1,6 @@
-from django.db import connection
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from .tenant_context import set_tenant_context
 
 
 class TenantJWTAuthentication(JWTAuthentication):
@@ -9,10 +10,5 @@ class TenantJWTAuthentication(JWTAuthentication):
         result = super().authenticate(request)
         if result:
             user, _ = result
-            tenant_id = str(user.Miscelanea_id or '')
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT set_config(%s, %s, false)",
-                    ['app.miscelanea_id', tenant_id],
-                )
+            set_tenant_context(user.Miscelanea_id)
         return result

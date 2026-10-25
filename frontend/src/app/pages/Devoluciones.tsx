@@ -13,10 +13,16 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
-import { useAuth } from "../contexts/AuthContext";
+import {
+  agruparInventarioDevolucion,
+  construirPayloadDevolucion,
+  construirResolucionDevolucion,
+  estadoDeSolicitud,
+  type EstadoResolucion,
+} from "./Devoluciones.helpers";
 import {
   Table,
   TableBody,
@@ -41,6 +47,16 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 export function Devoluciones() {
   const [devoluciones, setDevoluciones] = useState<any[]>([]);
@@ -56,6 +72,8 @@ export function Devoluciones() {
   const [selectedDevolucion, setSelectedDevolucion] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isUpdatingState, setIsUpdatingState] = useState(false);
+  const [pendingResolution, setPendingResolution] =
+    useState<EstadoResolucion | null>(null);
 
   //Form states
   const [motivo, setMotivo] = useState("");
@@ -63,92 +81,50 @@ export function Devoluciones() {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string>("");
   const [cantidadADevolver, setCantidadADevolver] = useState<number>(1);
 
-  const { userId } = useAuth();
+  const createInFlight = useRef(false);
+  const resolutionInFlight = useRef(false);
 
   useEffect(() => {
-    fetchData();
+    void fetchData().catch(() => {
+      toast.error("Error al cargar datos.");
+    });
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const [devolucionesRes, invRes, prodRes, detRes] = await Promise.all([
-        api.get("/inventario/solicitudes-devolucion/"),
-        api.get("/inventario/inventarios/"),
-        api.get("/catalogo/productos/"),
-        api.get("/inventario/detalles-entrada/"),
-      ]);
-      const devoluciones = devolucionesRes.data.results ?? devolucionesRes.data;
-      const inventario = invRes.data.results ?? invRes.data;
-      const productos = prodRes.data.results ?? prodRes.data;
-      const detalles = detRes.data.results ?? detRes.data;
-
-      setDevoluciones(Array.isArray(devoluciones) ? devoluciones : []);
-      setProductos(Array.isArray(productos) ? productos : []);
-      setDetallesEntrada(Array.isArray(detalles) ? detalles : []);
-
-      //FILTRO CORREGIDO: Solo mostramos items que están en el almacén (no vendidos)
-      setInventarioDisponible(
-        (Array.isArray(inventario) ? inventario : []).filter(
-          (i: any) => i.estado === "Disponible" || i.estado === "Dañado",
-        ),
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al cargar datos.");
+  const fetchData = async (includeLosses = false) => {
+    const requests = [
+      api.get("/inventario/solicitudes-devolucion/"),
+      api.get("/inventario/inventarios/"),
+      api.get("/catalogo/productos/"),
+      api.get("/inventario/detalles-entrada/"),
+    ];
+    if (includeLosses) {
+      requests.push(api.get("/inventario/perdidas/"));
     }
+    const [devolucionesRes, invRes, prodRes, detRes] = await Promise.all(requests);
+    const devoluciones = devolucionesRes.data.results ?? devolucionesRes.data;
+    const inventario = invRes.data.results ?? invRes.data;
+    const productos = prodRes.data.results ?? prodRes.data;
+    const detalles = detRes.data.results ?? detRes.data;
+
+    setDevoluciones(Array.isArray(devoluciones) ? devoluciones : []);
+    setProductos(Array.isArray(productos) ? productos : []);
+    setDetallesEntrada(Array.isArray(detalles) ? detalles : []);
+    setInventarioDisponible(Array.isArray(inventario) ? inventario : []);
   };
 
-  //Función auxiliar para obtener datos completos del ítem seleccionado
-  const getItemDetails = (invId: number) => {
-    const inv = inventarioDisponible.find(
-      (i) => i.id === invId || i.IdInventario === invId,
-    );
-    if (!inv) return null;
-
-    //Asumimos que el campo de llave foránea se llama DetalleEntrada_id
-    const detId = inv.detalleEntradaId || inv.IdDetalleEntrada;
-    const det = detallesEntrada.find(
-      (d) => d.id === detId || d.IdDetalleEntrada === detId,
-    );
-
-    if (!det) return { inv, prod: null, det: null };
-
-    const prodId = det.productoId || det.IdProducto;
-    const prod = productos.find(
-      (p) => p.id === prodId || p.IdProducto === prodId,
-    );
-
-    return { inv, prod, det };
-  };
-
-  // Agrupa productos por producto y entrada de inventario
-  const getAvailableGroups = () => {
-    const groups: Record<string, any> = {};
-    inventarioDisponible.forEach((inv) => {
-      const data = getItemDetails(inv.id || inv.IdInventario);
-      if (!data || !data.prod || !data.det) return;
-
-      const prodId = data.prod.id || data.prod.IdProducto;
-      const entradaId = data.det.IdEntradaInventario || data.det.entradaInventarioId;
-      const key = `${prodId}-${entradaId}`;
-
-      if (!groups[key]) {
-        groups[key] = {
-          key,
-          prodId,
-          entradaId,
-          nombre: data.prod.name || data.prod.Nombre,
-          presentacion: data.prod.presentacion || data.prod.Presentacion,
-          precioCompra: data.det.PrecioCompra || data.det.precioCompraUnitario || 0,
-          items: []
-        };
-      }
-      groups[key].items.push(inv);
-    });
-    return Object.values(groups);
-  };
+  const availableGroups = useMemo(
+    () =>
+      agruparInventarioDevolucion(
+        inventarioDisponible,
+        detallesEntrada,
+        productos,
+      ),
+    [inventarioDisponible, detallesEntrada, productos],
+  );
 
   const handleSave = async () => {
+    if (createInFlight.current) return;
+
     if (!selectedGroupKey || !motivo) {
       toast.warning("Debes seleccionar un ítem y especificar un motivo.");
       return;
@@ -161,7 +137,6 @@ export function Devoluciones() {
       return;
     }
 
-    const availableGroups = getAvailableGroups();
     const group = availableGroups.find(g => g.key === selectedGroupKey);
 
     if (!group) {
@@ -174,42 +149,38 @@ export function Devoluciones() {
       return;
     }
 
+    createInFlight.current = true;
     setIsSubmitting(true);
     try {
-      const itemsToReturn = group.items.slice(0, cantidadADevolver);
-
-      const detalles = itemsToReturn.map((inv: any) => ({
-        inventarioId: inv.id || inv.IdInventario,
-        MotivoRechazo: motivo,
-        PrecioCompraUnitario: group.precioCompra,
-        EstadoItem: "Pendiente",
-      }));
-
-      const payload = {
-        IdEntradaInventario: group.entradaId,
-        usuarioId: userId,
-        fechaSolicitud: new Date().toISOString().split("T")[0] + "T00:00:00Z",
-        Estado: "Pendiente",
-        Observaciones: observaciones,
-        detalles: detalles,
-      };
+      const payload = construirPayloadDevolucion(
+        group,
+        cantidadADevolver,
+        motivo,
+        observaciones,
+      );
 
       await api.post("/inventario/procesar-devolucion/", payload);
-      toast.success("Solicitud de devolución enviada al proveedor.");
       setIsAddOpen(false);
       setSelectedGroupKey("");
       setCantidadADevolver(1);
       setMotivo("");
       setObservaciones("");
-      fetchData();
+      try {
+        await fetchData();
+        toast.success("Solicitud de devolución enviada al proveedor.");
+      } catch {
+        toast.warning(
+          "La solicitud se creó, pero no se pudo actualizar la pantalla.",
+        );
+      }
     } catch (e: any) {
-      console.log("ERROR COMPLETO:", e);
       toast.error(
         e.response?.data?.error ||
         e.response?.data?.detail ||
-        "Error desconocido",
+        "No se pudo crear la solicitud de devolución.",
       );
     } finally {
+      createInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -219,34 +190,41 @@ export function Devoluciones() {
     setIsDetailOpen(true);
   };
 
-  const handleChangeState = async (nuevoEstado: string) => {
-    if (!selectedDevolucion) return;
+  const handleChangeState = async () => {
+    if (!selectedDevolucion || !pendingResolution || resolutionInFlight.current) {
+      return;
+    }
+    if (!estadoDeSolicitud(selectedDevolucion).puedeResolver) return;
+
+    resolutionInFlight.current = true;
     setIsUpdatingState(true);
     try {
       const id = selectedDevolucion.id || selectedDevolucion.IdSolicitudDevolucion;
+      const resolucion = construirResolucionDevolucion(id, pendingResolution);
+      await api.post(resolucion.url, resolucion.payload);
 
-      // 1. PATCH request para actualizar estado
-      await api.patch(`/inventario/solicitudes-devolucion/${id}/`, {
-        estado: nuevoEstado,
-      });
-
-      // 2. Si es 'Aceptada', POST para devolver el stock
-      if (nuevoEstado === "Aceptada") {
-        await api.post(`/inventario/devolver-stock/`, {
-          solicitud_id: id,
-        });
-        toast.success("Solicitud aprobada y stock devuelto exitosamente.");
-      } else {
-        toast.success(`Solicitud ${nuevoEstado.toLowerCase()} exitosamente.`);
-      }
-
+      const estadoAplicado = pendingResolution;
+      setPendingResolution(null);
       setIsDetailOpen(false);
       setSelectedDevolucion(null);
-      fetchData(); // Recargar datos para ver los cambios
+      try {
+        await fetchData(estadoAplicado === "Rechazada");
+        toast.success(
+          estadoAplicado === "Aceptada"
+            ? "Devolución aceptada; las unidades permanecen fuera del stock disponible."
+            : "Devolución rechazada y unidades registradas como pérdida.",
+        );
+      } catch {
+        toast.warning(
+          "La devolución se resolvió, pero no se pudo actualizar la pantalla.",
+        );
+      }
     } catch (error: any) {
-      console.error(error);
-      toast.error(error.response?.data?.error || "Error al actualizar el estado");
+      toast.error(
+        error.response?.data?.error || "No se pudo resolver la devolución.",
+      );
     } finally {
+      resolutionInFlight.current = false;
       setIsUpdatingState(false);
     }
   };
@@ -258,6 +236,9 @@ export function Devoluciones() {
       (d.Observaciones &&
         d.Observaciones.toLowerCase().includes(searchTerm.toLowerCase())),
   );
+  const selectedState = selectedDevolucion
+    ? estadoDeSolicitud(selectedDevolucion)
+    : null;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -309,7 +290,7 @@ export function Devoluciones() {
               {filtered.length > 0 ? (
                 filtered.map((d) => {
                   const idSol = d.id || d.IdSolicitudDevolucion;
-                  const estado = d.Estado || d.estado || "Pendiente";
+                  const estado = estadoDeSolicitud(d).valor;
                   const primerDetalle = d.detalles?.[0];
 
                   return (
@@ -345,7 +326,7 @@ export function Devoluciones() {
                               : "bg-amber-100 text-amber-800"
                             }`}
                         >
-                          {estado === "Aceptada" ? "Aprobada" : estado}
+                          {estado}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground font-medium">
@@ -370,14 +351,28 @@ export function Devoluciones() {
       </Card>
 
       {/* MODAL DETALLE DEVOLUCION */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog
+        open={isDetailOpen}
+        onOpenChange={(open) => {
+          if (isUpdatingState) return;
+          setIsDetailOpen(open);
+          if (!open) setSelectedDevolucion(null);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[500px]"
+          aria-labelledby="detalle-devolucion-titulo"
+          aria-describedby="detalle-devolucion-descripcion"
+        >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
+            <DialogTitle
+              id="detalle-devolucion-titulo"
+              className="flex items-center gap-2 text-foreground"
+            >
               <Eye className="size-5" />
               Detalle de Devolución
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="detalle-devolucion-descripcion">
               Información de la solicitud #{selectedDevolucion?.id || selectedDevolucion?.IdSolicitudDevolucion}
             </DialogDescription>
           </DialogHeader>
@@ -406,13 +401,13 @@ export function Devoluciones() {
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground block">Estado Actual:</span>
-                  <span className={`px-2 py-1 mt-1 inline-block text-xs rounded-full font-semibold ${(selectedDevolucion.estado || selectedDevolucion.Estado) === "Aceptada" || (selectedDevolucion.estado || selectedDevolucion.Estado) === "Aprobada"
+                  <span className={`px-2 py-1 mt-1 inline-block text-xs rounded-full font-semibold ${selectedState?.valor === "Aceptada" || selectedState?.valor === "Aprobada"
                     ? "bg-green-100 text-green-800"
-                    : (selectedDevolucion.estado || selectedDevolucion.Estado) === "Rechazada"
+                    : selectedState?.valor === "Rechazada"
                       ? "bg-red-100 text-red-800"
                       : "bg-amber-100 text-amber-800"
                     }`}>
-                    {(selectedDevolucion.estado || selectedDevolucion.Estado) === "Aceptada" ? "Aprobada" : (selectedDevolucion.estado || selectedDevolucion.Estado) || "Pendiente"}
+                    {selectedState?.valor}
                   </span>
                 </div>
                 <div>
@@ -421,12 +416,12 @@ export function Devoluciones() {
                 </div>
               </div>
 
-              {(selectedDevolucion.estado || selectedDevolucion.Estado) === "Pendiente" ? (
+              {selectedState?.puedeResolver ? (
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                   <Button
                     variant="outline"
                     className="border-red-200 text-red-600 hover:bg-red-50"
-                    onClick={() => handleChangeState("Rechazada")}
+                    onClick={() => setPendingResolution("Rechazada")}
                     disabled={isUpdatingState}
                   >
                     {isUpdatingState ? <Loader2 className="animate-spin size-4 mr-2" /> : <XCircle className="size-4 mr-2" />}
@@ -434,7 +429,7 @@ export function Devoluciones() {
                   </Button>
                   <Button
                     className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => handleChangeState("Aceptada")}
+                    onClick={() => setPendingResolution("Aceptada")}
                     disabled={isUpdatingState}
                   >
                     {isUpdatingState ? <Loader2 className="animate-spin size-4 mr-2" /> : <CheckCircle2 className="size-4 mr-2" />}
@@ -451,14 +446,76 @@ export function Devoluciones() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <AlertDialog
+        open={pendingResolution !== null}
+        onOpenChange={(open) => {
+          if (!open && !isUpdatingState) setPendingResolution(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingResolution === "Aceptada"
+                ? "Aceptar devolución"
+                : "Rechazar devolución"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingResolution === "Aceptada"
+                ? "Al aceptar, las unidades permanecerán devueltas al proveedor y fuera del stock disponible."
+                : "Al rechazar, las unidades se registrarán como una pérdida y no volverán al stock disponible."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isUpdatingState}
+              onClick={() => setPendingResolution(null)}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isUpdatingState}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleChangeState();
+              }}
+              className={
+                pendingResolution === "Rechazada"
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "bg-green-600 text-white hover:bg-green-700"
+              }
+            >
+              {isUpdatingState && (
+                <Loader2 className="animate-spin size-4 mr-2" />
+              )}
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog
+        open={isAddOpen}
+        onOpenChange={(open) => {
+          if (!isSubmitting) setIsAddOpen(open);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          aria-labelledby="crear-devolucion-titulo"
+          aria-describedby="crear-devolucion-descripcion"
+        >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
+            <DialogTitle
+              id="crear-devolucion-titulo"
+              className="flex items-center gap-2 text-foreground"
+            >
               <CornerDownLeft className="size-5" />
               Solicitar Devolución
             </DialogTitle>
-            <DialogDescription className="sr-only">
+            <DialogDescription
+              id="crear-devolucion-descripcion"
+              className="sr-only"
+            >
               Selecciona el producto, indica la cantidad y el motivo de rechazo.
             </DialogDescription>
           </DialogHeader>
@@ -477,6 +534,7 @@ export function Devoluciones() {
               <Label>Producto</Label>
               <Select
                 value={selectedGroupKey}
+                disabled={isSubmitting}
                 onValueChange={(val) => {
                   setSelectedGroupKey(val);
                   setCantidadADevolver(1); // Resetear cantidad al cambiar de producto
@@ -486,12 +544,12 @@ export function Devoluciones() {
                   <SelectValue placeholder="Selecciona un producto..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableGroups().map((group: any) => (
+                  {availableGroups.map((group) => (
                     <SelectItem key={group.key} value={group.key}>
-                      {group.nombre} {group.presentacion ? `(${group.presentacion})` : ""} - Compra #{group.entradaId} ({group.items.length} disp.)
+                      {group.nombre} {group.presentacion ? `(${group.presentacion})` : ""} - Compra #{group.entradaId}, detalle #{group.detalleId} ({group.items.length} disp.)
                     </SelectItem>
                   ))}
-                  {getAvailableGroups().length === 0 && (
+                  {availableGroups.length === 0 && (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       No hay productos disponibles para devolver.
                     </div>
@@ -506,9 +564,10 @@ export function Devoluciones() {
                 <Input
                   type="number"
                   min={1}
-                  max={getAvailableGroups().find(g => g.key === selectedGroupKey)?.items.length || 1}
+                  max={availableGroups.find(g => g.key === selectedGroupKey)?.items.length || 1}
                   value={cantidadADevolver}
-                  onChange={(e) => setCantidadADevolver(parseInt(e.target.value))}
+                  disabled={isSubmitting}
+                  onChange={(e) => setCantidadADevolver(parseInt(e.target.value) || 1)}
                 />
               </div>
             )}
@@ -518,6 +577,7 @@ export function Devoluciones() {
               <Textarea
                 placeholder="Ej. El producto venía vencido..."
                 value={motivo}
+                disabled={isSubmitting}
                 onChange={(e) => setMotivo(e.target.value)}
               />
               <p className="text-xs text-muted-foreground text-right">
@@ -530,12 +590,17 @@ export function Devoluciones() {
               <Input
                 placeholder="Notas adicionales para la solicitud..."
                 value={observaciones}
+                disabled={isSubmitting}
                 onChange={(e) => setObservaciones(e.target.value)}
               />
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              <Button
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => setIsAddOpen(false)}
+              >
                 Cancelar
               </Button>
               <Button

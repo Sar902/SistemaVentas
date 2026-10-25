@@ -111,6 +111,7 @@ INSTALLED_APPS = [
 # pueda responder o bloquear la petición preflight (OPTIONS).
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',       # CORS: debe ir PRIMERO
+    'usuarios.tenant_context.TenantContextMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',   # Sirve archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',

@@ -1,19 +1,14 @@
 from django.contrib import admin
 from django import forms
-from django.conf import settings
 from .models import Miscelanea, Usuario
+from .permissions import is_technical_admin
 
 
 from django.utils.html import format_html
 
 
 def _technical_admin_only(self, request):
-	return bool(
-		request.user
-		and request.user.is_active
-		and request.user.is_staff
-		and request.user.Email.lower() == settings.DJANGO_ADMIN_EMAIL
-	)
+	return is_technical_admin(request.user)
 
 
 admin.AdminSite.has_permission = _technical_admin_only

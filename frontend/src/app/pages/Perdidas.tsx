@@ -10,10 +10,16 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
-import { useAuth } from "../contexts/AuthContext";
+import {
+  MOTIVOS_PERDIDA,
+  agruparInventarioDisponible,
+  calcularTotalEstimado,
+  construirPayloadPerdida,
+  formatearMonto,
+} from "./Perdidas.helpers";
 import {
   Table,
   TableBody,
@@ -58,74 +64,51 @@ export function Perdidas() {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedPerdida, setSelectedPerdida] = useState<any>(null);
 
-  const { userId } = useAuth();
+  const submissionInFlight = useRef(false);
 
   useEffect(() => {
-    fetchData();
+    void fetchData().catch((error) => {
+      console.error(error);
+      toast.error("Error al cargar datos.");
+    });
   }, []);
 
   const fetchData = async () => {
-    try {
-      const [perdidasRes, invRes, prodRes, detRes] = await Promise.all([
-        api.get("/inventario/perdidas/"),
-        api.get("/inventario/inventarios/"),
-        api.get("/catalogo/productos/"),
-        api.get("/inventario/detalles-entrada/"),
-      ]);
-      const perdidas = perdidasRes.data.results ?? perdidasRes.data;
-      const inventario = invRes.data.results ?? invRes.data;
-      const productos = prodRes.data.results ?? prodRes.data;
-      const detalles = detRes.data.results ?? detRes.data;
-      setPerdidas(Array.isArray(perdidas) ? perdidas : []);
-      setProductos(Array.isArray(productos) ? productos : []);
-      setDetallesEntrada(Array.isArray(detalles) ? detalles : []);
-      setInventarioDisponible(
-        (Array.isArray(inventario) ? inventario : []).filter(
-          (i: any) => i.estado === "Disponible",
-        ),
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al cargar datos.");
-    }
+    const [perdidasRes, invRes, prodRes, detRes] = await Promise.all([
+      api.get("/inventario/perdidas/"),
+      api.get("/inventario/inventarios/"),
+      api.get("/catalogo/productos/"),
+      api.get("/inventario/detalles-entrada/"),
+    ]);
+    const perdidas = perdidasRes.data.results ?? perdidasRes.data;
+    const inventario = invRes.data.results ?? invRes.data;
+    const productos = prodRes.data.results ?? prodRes.data;
+    const detalles = detRes.data.results ?? detRes.data;
+    setPerdidas(Array.isArray(perdidas) ? perdidas : []);
+    setProductos(Array.isArray(productos) ? productos : []);
+    setDetallesEntrada(Array.isArray(detalles) ? detalles : []);
+    setInventarioDisponible(Array.isArray(inventario) ? inventario : []);
   };
 
-  const getAvailableGroups = () => {
-    const groups: Record<string, any> = {};
-    inventarioDisponible.forEach((inv) => {
-      const det = detallesEntrada.find((d) => d.id === inv.detalleEntradaId);
-      if (!det) return;
-      const prod = productos.find((p) => p.id === det.productoId);
-      if (!prod) return;
-
-      const prodId = prod.id;
-      const entradaId = det.entradaInventarioId;
-      const key = `${prodId}-${entradaId}`;
-
-      if (!groups[key]) {
-        groups[key] = {
-          key,
-          prodId,
-          entradaId,
-          nombre: prod.name,
-          presentacion: prod.presentacion || prod.Presentacion,
-          precioCompra: Number(det.precioCompraUnitario),
-          items: [],
-        };
-      }
-      groups[key].items.push(inv);
-    });
-    return Object.values(groups);
-  };
+  const availableGroups = useMemo(
+    () =>
+      agruparInventarioDisponible(
+        inventarioDisponible,
+        detallesEntrada,
+        productos,
+      ),
+    [inventarioDisponible, detallesEntrada, productos],
+  );
 
   const handleSave = async () => {
+    if (submissionInFlight.current) return;
+
     if (!selectedGroupKey) {
       toast.warning("Debes seleccionar un producto.");
       return;
     }
 
-    const availableGroups = getAvailableGroups();
-    const group = availableGroups.find((g: any) => g.key === selectedGroupKey);
+    const group = availableGroups.find((g) => g.key === selectedGroupKey);
 
     if (!group) {
       toast.error("El grupo de productos seleccionado no es válido.");
@@ -137,37 +120,36 @@ export function Perdidas() {
       return;
     }
 
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     try {
-      const itemsToLose = group.items.slice(0, cantidadAPerder);
-      const totalPerdido = group.precioCompra * cantidadAPerder;
-
-      const detalles = itemsToLose.map((inv: any) => ({
-        inventarioId: inv.id,
-        precioCompraUnitario: group.precioCompra,
-      }));
-
-      const payload = {
-        usuarioId: userId,
-        tipoPerdida: tipoPerdida,
-        fecha: new Date().toISOString(),
-        total: totalPerdido,
-        detalles: detalles,
-      };
+      const payload = construirPayloadPerdida(
+        tipoPerdida,
+        group,
+        cantidadAPerder,
+      );
 
       await api.post("/inventario/procesar-perdida/", payload);
 
-      toast.success("Pérdida registrada exitosamente.");
       setIsAddOpen(false);
       setSelectedGroupKey("");
       setCantidadAPerder(1);
-      fetchData();
+      try {
+        await fetchData();
+        toast.success("Pérdida registrada exitosamente.");
+      } catch (refreshError) {
+        console.error(refreshError);
+        toast.warning(
+          "La pérdida se registró, pero no se pudo actualizar la pantalla.",
+        );
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(
         e.response?.data?.error || "Ocurrió un error al reportar la pérdida.",
       );
     } finally {
+      submissionInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -244,7 +226,7 @@ export function Perdidas() {
                       {p.usuarioNombre} ({p.usuarioRol})
                     </TableCell>
                     <TableCell className="text-right font-bold text-red-600">
-                      -C${Number(p.total).toFixed(2)}
+                      -C${formatearMonto(p.total)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
@@ -310,7 +292,9 @@ export function Perdidas() {
                 <div>
                   <Label className="font-semibold text-foreground">Precio Unitario</Label>
                   <p className="text-foreground">
-                    C${Number(selectedPerdida.detalles[0].precioCompraUnitario).toFixed(2)}
+                    C${formatearMonto(
+                      selectedPerdida.detalles[0].precioCompraUnitario,
+                    )}
                   </p>
                 </div>
               </div>
@@ -322,7 +306,7 @@ export function Perdidas() {
                 Total Perdido:
               </span>
               <span className="font-bold text-red-600 text-lg">
-                -C${Number(selectedPerdida?.total || 0).toFixed(2)}
+                -C${formatearMonto(selectedPerdida?.total || 0)}
               </span>
             </div>
           </div>
@@ -353,14 +337,15 @@ export function Perdidas() {
                   <SelectValue placeholder="Selecciona el producto dañado..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableGroups().map((group: any) => (
+                  {availableGroups.map((group) => (
                     <SelectItem key={group.key} value={group.key}>
                       {group.nombre}{" "}
                       {group.presentacion ? `(${group.presentacion})` : ""} -
-                      Compra #{group.entradaId} ({group.items.length} disp.)
+                      Compra #{group.entradaId}, detalle #{group.detalleId}{" "}
+                      ({group.items.length} disp.)
                     </SelectItem>
                   ))}
-                  {getAvailableGroups().length === 0 && (
+                  {availableGroups.length === 0 && (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       No hay productos disponibles.
                     </div>
@@ -376,9 +361,8 @@ export function Perdidas() {
                   type="number"
                   min={1}
                   max={
-                    getAvailableGroups().find(
-                      (g: any) => g.key === selectedGroupKey,
-                    )?.items.length || 1
+                    availableGroups.find((g) => g.key === selectedGroupKey)
+                      ?.items.length || 1
                   }
                   value={cantidadAPerder}
                   onChange={(e) =>
@@ -395,33 +379,41 @@ export function Perdidas() {
                   <SelectValue placeholder="Selecciona el motivo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Vencimiento">Vencimiento</SelectItem>
-                  <SelectItem value="Dañado">Dañado / Roto</SelectItem>
-                  <SelectItem value="Robo">Robo o Extravío</SelectItem>
-                  <SelectItem value="Uso Interno">Uso Interno</SelectItem>
+                  {MOTIVOS_PERDIDA.map((motivo) => (
+                    <SelectItem key={motivo.value} value={motivo.value}>
+                      {motivo.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {selectedGroupKey &&
               (() => {
-                const group = getAvailableGroups().find(
-                  (g: any) => g.key === selectedGroupKey,
+                const group = availableGroups.find(
+                  (g) => g.key === selectedGroupKey,
                 );
                 return group ? (
                   <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center text-sm">
                     <span className="text-red-800 font-medium">
-                      Costo de Merma Total:
+                      Total estimado de la merma:
                     </span>
                     <span className="text-red-700 font-bold">
-                      C${(group.precioCompra * cantidadAPerder).toFixed(2)}
+                      C$
+                      {formatearMonto(
+                        calcularTotalEstimado(group, cantidadAPerder),
+                      )}
                     </span>
                   </div>
                 ) : null;
               })()}
 
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              <Button
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => setIsAddOpen(false)}
+              >
                 Cancelar
               </Button>
               <Button

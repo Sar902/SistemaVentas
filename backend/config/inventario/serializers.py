@@ -30,6 +30,8 @@ NAVEGACIÓN DE RELACIONES FK INVERSAS:
       sin peticiones adicionales.
 """
 
+from decimal import Decimal
+
 from rest_framework import serializers
 from .models import (
     EntradaInventario, DetalleEntradaInventario, Inventario,
@@ -39,6 +41,89 @@ from usuarios.tenant import TenantPrimaryKeyRelatedField
 from catalogo.models import Proveedor, Producto
 from usuarios.models import Usuario
 from django.utils import timezone
+
+
+class StrictPositiveIntegerField(serializers.IntegerField):
+    """Accept only positive JSON integers, never booleans or fractions."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, bool) or not isinstance(data, int):
+            self.fail('invalid')
+        return super().to_internal_value(data)
+
+
+class ProcesarPerdidaDetalleInputSerializer(serializers.Serializer):
+    inventarioId = StrictPositiveIntegerField(min_value=1)
+
+
+class ProcesarPerdidaInputSerializer(serializers.Serializer):
+    TIPOS_MANUALES = (
+        'Vencimiento',
+        'Dañado',
+        'Robo',
+        'Uso Interno',
+        'Otra',
+    )
+
+    tipoPerdida = serializers.ChoiceField(choices=TIPOS_MANUALES)
+    detalles = ProcesarPerdidaDetalleInputSerializer(many=True, allow_empty=False)
+
+    def validate_detalles(self, detalles):
+        ids = [detalle['inventarioId'] for detalle in detalles]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError(
+                'No se puede incluir una unidad repetida.'
+            )
+        return detalles
+
+
+class ProcesarDevolucionDetalleInputSerializer(serializers.Serializer):
+    """Validate one physical unit requested for return to its supplier."""
+
+    inventarioId = StrictPositiveIntegerField(min_value=1)
+    MotivoRechazo = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+
+class ProcesarDevolucionInputSerializer(serializers.Serializer):
+    """Accept only the client-owned fields of a supplier return request."""
+
+    IdEntradaInventario = StrictPositiveIntegerField(min_value=1)
+    Observaciones = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    detalles = ProcesarDevolucionDetalleInputSerializer(
+        many=True,
+        allow_empty=False,
+    )
+
+    def validate_detalles(self, detalles):
+        ids = [detalle['inventarioId'] for detalle in detalles]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError(
+                'No se puede incluir una unidad repetida.'
+            )
+        return detalles
+
+
+class ResolverDevolucionInputSerializer(serializers.Serializer):
+    """Accept only the two terminal states supported by supplier returns."""
+
+    estado = serializers.ChoiceField(choices=('Aceptada', 'Rechazada'))
+
+
+def validar_total_perdida(total):
+    """Validate a server-calculated amount against Perdida.Total capacity."""
+    return serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal('0.00'),
+    ).run_validation(total)
 
 
 class InventarioMiniSerializer(serializers.ModelSerializer):
@@ -137,6 +222,81 @@ class EntradaInventarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = EntradaInventario
         fields = ['id', 'proveedorId', 'usuarioId', 'fechaEntrada', 'total', 'proveedorNombre', 'detalles']
+
+
+class PositivePurchaseQuantityField(serializers.IntegerField):
+    """Cantidad entera positiva; los booleanos y números JSON fraccionarios no son enteros."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, (bool, float)):
+            self.fail('invalid')
+        return super().to_internal_value(data)
+
+
+class DetalleCompraCompletaInputSerializer(serializers.Serializer):
+    """Valida una línea de compra completa dentro de la miscelánea autenticada."""
+
+    id = serializers.IntegerField(required=False, min_value=1)
+    productoId = TenantPrimaryKeyRelatedField(
+        source='producto', queryset=Producto.objects.all()
+    )
+    tipoCompra = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default='unidad',
+        max_length=30,
+    )
+    cantidad = PositivePurchaseQuantityField(min_value=1)
+    precioCompraUnitario = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal('0.00'),
+    )
+
+
+class CompraCompletaInputSerializer(serializers.Serializer):
+    """Valida la compra sin aceptar identidad, miscelánea ni total del cliente."""
+
+    proveedorId = TenantPrimaryKeyRelatedField(
+        source='proveedor', queryset=Proveedor.objects.all()
+    )
+    fechaEntrada = serializers.DateTimeField(required=False, default=timezone.now)
+    detalles = DetalleCompraCompletaInputSerializer(many=True, allow_empty=False)
+
+    def validate_fechaEntrada(self, value):
+        if value > timezone.now():
+            raise serializers.ValidationError(
+                "La fecha de recepción no puede estar en el futuro."
+            )
+        return value
+
+    def validate(self, attrs):
+        total = sum(
+            (
+                detalle['cantidad'] * detalle['precioCompraUnitario']
+                for detalle in attrs['detalles']
+            ),
+            Decimal('0.00'),
+        )
+        total_field = serializers.DecimalField(
+            max_digits=12,
+            decimal_places=2,
+            min_value=Decimal('0.00'),
+        )
+        try:
+            attrs['total_calculado'] = total_field.run_validation(total)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError(
+                {'detalles': 'El total de la compra excede la precisión permitida.'}
+            ) from exc
+        return attrs
+
+
+class EditarCompraCompletaInputSerializer(CompraCompletaInputSerializer):
+    """Reutiliza la validación de compra y permite conservar la fecha omitida."""
+
+    fechaEntrada = serializers.DateTimeField(required=False)
 
 
 class InventarioSerializer(serializers.ModelSerializer):
@@ -321,3 +481,30 @@ class SolicitudDevolucionSerializer(serializers.ModelSerializer):
             'id', 'entradaInventarioId', 'usuarioId', 'usuarioNombre',
             'estado', 'observaciones', 'fecha', 'detalles'
         ]
+
+
+class ActualizarObservacionesDevolucionSerializer(serializers.Serializer):
+    """Payload estricto para editar solo las observaciones de una solicitud."""
+
+    observaciones = serializers.CharField(
+        required=True,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+    def to_internal_value(self, data):
+        if not hasattr(data, 'keys'):
+            raise serializers.ValidationError(
+                {'non_field_errors': ['Se esperaba un objeto JSON.']}
+            )
+        campos_adicionales = sorted(set(data.keys()) - {'observaciones'})
+        if campos_adicionales:
+            raise serializers.ValidationError(
+                {
+                    'campos': [
+                        'Solo se permite el campo observaciones. '
+                        f'Campos no permitidos: {", ".join(campos_adicionales)}.'
+                    ]
+                }
+            )
+        return super().to_internal_value(data)

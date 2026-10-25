@@ -29,6 +29,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework import serializers, status
+from rest_framework.exceptions import APIException
 from django.utils import timezone
 from datetime import timedelta
 from math import ceil
@@ -225,37 +226,51 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         # Import local para evitar circular import en bootstrap de Django
         from auditoria.mixins import registrar_evento_manual
 
-        response = super().post(request, *args, **kwargs)
+        email_raw = request.data.get('Email') or request.data.get('username', '')
+        codigo_raw = request.data.get('codigo', '')
+        email = email_raw.strip() if isinstance(email_raw, str) else ''
+        codigo = codigo_raw.strip() if isinstance(codigo_raw, str) else ''
 
-        email = request.data.get('Email') or request.data.get('username', 'desconocido')
+        from usuarios.models import Miscelanea, Usuario
+
+        miscelanea = None
+        usuario = None
+        if codigo:
+            miscelanea = Miscelanea.objects.filter(Codigo__iexact=codigo).first()
+        if miscelanea is not None and email:
+            usuario = Usuario.objects.filter(
+                Email__iexact=email,
+                Miscelanea=miscelanea,
+            ).first()
+
+        try:
+            response = super().post(request, *args, **kwargs)
+        except APIException:
+            registrar_evento_manual(
+                request=request,
+                accion='LOGIN',
+                modulo='SISTEMA',
+                descripcion=(
+                    'Intento de login fallido con miscelánea identificada.'
+                    if miscelanea is not None
+                    else 'Intento de login fallido sin miscelánea identificable.'
+                ),
+                resultado='FALLIDO',
+                datos_nuevos={'tenant_identificado': miscelanea is not None},
+                usuario_override=usuario,
+                miscelanea_override=miscelanea,
+            )
+            raise
 
         if response.status_code == status.HTTP_200_OK:
-            # Login exitoso: el serializer ya validó las credenciales
-            # Intentamos obtener el nombre del usuario desde la BD
-            nombre_usuario = email  # Fallback al email si no encontramos el nombre
-            try:
-                from usuarios.models import Usuario
-                usuario = Usuario.objects.get(Email=email)
-                nombre_usuario = usuario.Nombre
-            except Exception:
-                pass
-
             registrar_evento_manual(
                 request=request,
                 accion='LOGIN',
                 modulo='SISTEMA',
-                descripcion=f'Inicio de sesión exitoso: {nombre_usuario}',
+                descripcion='Inicio de sesión exitoso.',
                 resultado='EXITOSO',
+                datos_nuevos={'tenant_identificado': miscelanea is not None},
+                usuario_override=usuario,
+                miscelanea_override=miscelanea,
             )
-        else:
-            # Login fallido: puede ser contraseña incorrecta, cuenta bloqueada
-            # o cuenta inactiva. El mensaje de error ya va en el response body.
-            registrar_evento_manual(
-                request=request,
-                accion='LOGIN',
-                modulo='SISTEMA',
-                descripcion=f'Intento de login fallido para: {email}',
-                resultado='FALLIDO',
-            )
-
         return response
