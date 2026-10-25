@@ -27,6 +27,9 @@ PorcentajeGanancia en Categoria:
 """
 
 from django.db import models
+from django.db.models import Q
+
+from .codigos import LONGITUD_MAXIMA_CODIGO_PRODUCTO, validar_codigo_producto
 from django.core.validators import MinValueValidator
 
 
@@ -155,6 +158,12 @@ class Producto(models.Model):
     )
     # NUEVO: Tamaño o Presentación (Opcional)
     Presentacion = models.CharField(max_length=100, null=True, blank=True)
+    Codigo = models.CharField(
+        max_length=LONGITUD_MAXIMA_CODIGO_PRODUCTO,
+        null=True,
+        blank=True,
+        validators=[validar_codigo_producto],
+    )
     Estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='Activo', null=False, blank=False)
     # NUEVO: Imagen o Foto del Producto (Opcional, en base64 o URL)
     Imagen = models.TextField(null=True, blank=True)
@@ -165,7 +174,12 @@ class Producto(models.Model):
             models.UniqueConstraint(
                 fields=['Miscelanea', 'Nombre'],
                 name='unique_producto_por_miscelanea'
-            )
+            ),
+            models.UniqueConstraint(
+                fields=['Miscelanea', 'Codigo'],
+                condition=Q(Codigo__isnull=False),
+                name='unique_codigo_producto_por_miscelanea',
+            ),
         ]
 
     def calcular_precio_venta(self):

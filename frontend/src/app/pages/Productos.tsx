@@ -16,8 +16,10 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -50,8 +52,13 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
+import { CameraBarcodeScanner } from "../components/CameraBarcodeScanner";
 
 export function Productos() {
+  const { userRole, delegatedModules } = useAuth();
+  const canManageProducts =
+    userRole === "admin" || delegatedModules.includes("PRODUCTOS");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -79,6 +86,7 @@ export function Productos() {
   // NUEVO: Estados para proveedor, presentación e imagen
   const [newProductProveedor, setNewProductProveedor] = useState("");
   const [newProductPresentacion, setNewProductPresentacion] = useState("");
+  const [newProductCode, setNewProductCode] = useState("");
   const [newProductImagen, setNewProductImagen] = useState("");
   const [proveedores, setProveedores] = useState<any[]>([]);
 
@@ -171,6 +179,14 @@ export function Productos() {
     };
   }, []);
 
+  useEffect(() => {
+    const requestedCode = searchParams.get("codigo")?.trim();
+    if (!requestedCode || !canManageProducts) return;
+    setNewProductCode(requestedCode);
+    setIsAddProductOpen(true);
+    setSearchParams({}, { replace: true });
+  }, [canManageProducts, searchParams, setSearchParams]);
+
   const handleDeleteClick = (product: any) => {
     setDeleteAlert({
       isOpen: true,
@@ -229,6 +245,7 @@ export function Productos() {
             ? parseInt(editingProduct.proveedorId)
             : null,
           presentacion: editingProduct.presentacion,
+          code: editingProduct.code || null,
           imagen: editingProduct.imagen || null,
         };
         const response = await api.patch(
@@ -242,6 +259,7 @@ export function Productos() {
       } catch (error: any) {
         console.error("Error updating product:", error);
         const msg =
+          error?.response?.data?.code?.[0] ||
           error?.response?.data?.name?.[0] ||
           error?.response?.data?.detail ||
           "Error al actualizar el producto.";
@@ -261,6 +279,7 @@ export function Productos() {
         categoryId: parseInt(newProductCategory),
         proveedorId: newProductProveedor ? parseInt(newProductProveedor) : null,
         presentacion: newProductPresentacion,
+        code: newProductCode || null,
         imagen: newProductImagen || null,
       };
       await api.post("/catalogo/productos/", payload);
@@ -272,10 +291,12 @@ export function Productos() {
       setNewProductCategory("2");
       setNewProductProveedor("");
       setNewProductPresentacion("");
+      setNewProductCode("");
       setNewProductImagen("");
     } catch (error: any) {
       console.error("Error adding product:", error);
       const msg =
+        error?.response?.data?.code?.[0] ||
         error?.response?.data?.name?.[0] ||
         error?.response?.data?.detail ||
         "Error al agregar el producto.";
@@ -547,6 +568,7 @@ export function Productos() {
                 <TableRow>
                   <TableHead>Nombre del Producto</TableHead>
                   <TableHead>Presentación</TableHead>
+                  <TableHead>Código</TableHead>
                   <TableHead>Stock Disponible</TableHead>
                   <TableHead>Precio de Venta</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -574,6 +596,9 @@ export function Productos() {
                       </TableCell>
                       <TableCell className="text-foreground">
                         {product.presentacion || "-"}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm text-foreground">
+                        {product.code || "-"}
                       </TableCell>
                       <TableCell>
                         <span
@@ -615,7 +640,7 @@ export function Productos() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={6}
                       className="text-center py-8 text-muted-foreground"
                     >
                       No se encontraron productos que coincidan con "
@@ -695,6 +720,31 @@ export function Productos() {
                 placeholder="Ej: 12 onzas, 3 litros, 500 ml"
                 className="mt-2"
               />
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">
+                Código (Opcional)
+              </Label>
+              <Input
+                value={newProductCode}
+                onChange={(event) => setNewProductCode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }
+                }}
+                placeholder="Escribir, pegar o escanear"
+                autoComplete="off"
+                className="mt-2 font-mono"
+              />
+              <CameraBarcodeScanner
+                onDetected={setNewProductCode}
+                className="mt-2 w-full"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Presiona el botón para guardar; Enter no envía este formulario.
+              </p>
             </div>
             <div>
               <Label className="text-foreground font-semibold">
@@ -884,6 +934,38 @@ export function Productos() {
                 }
                 placeholder="Ej: 12 onzas, 3 litros, 500 ml"
                 className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-foreground font-semibold">
+                Código (Opcional)
+              </Label>
+              <Input
+                value={editingProduct?.code || ""}
+                onChange={(event) =>
+                  setEditingProduct({
+                    ...editingProduct,
+                    code: event.target.value,
+                  })
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }
+                }}
+                placeholder="Escribir, pegar o escanear"
+                autoComplete="off"
+                className="mt-2 font-mono"
+              />
+              <CameraBarcodeScanner
+                onDetected={(code) =>
+                  setEditingProduct({
+                    ...editingProduct,
+                    code,
+                  })
+                }
+                className="mt-2 w-full"
               />
             </div>
             <div>

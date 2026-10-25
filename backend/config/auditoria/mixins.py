@@ -48,7 +48,7 @@ AUDITABLE_MODEL_FIELDS = {
     ),
     'catalogo.producto': (
         'IdProducto', 'Miscelanea', 'IdCategoria', 'IdProveedor', 'Nombre',
-        'Presentacion', 'Estado',
+        'Presentacion', 'Codigo', 'Estado',
     ),
     'usuarios.usuario': (
         'IdUsuario', 'Miscelanea', 'Nombre', 'Email', 'Estado', 'Rol',

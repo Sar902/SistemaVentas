@@ -35,7 +35,8 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router";
 import api from "../api/axiosInstance";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
@@ -49,6 +50,14 @@ import {
 } from "../components/ui/table";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  agregarUnidadEscaneada,
+  construirDetallesVenta,
+  encolarLecturaCodigo,
+  mensajeErrorBusquedaCodigo,
+  normalizarEntradaCodigo,
+} from "./CodigosProducto.helpers";
+import { CameraBarcodeScanner } from "../components/CameraBarcodeScanner";
 
 /**
  * Modal de confirmación de anulación de venta.
@@ -690,12 +699,20 @@ export function Ventas() {
   const [categorias, setCategorias] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [barcodeTerm, setBarcodeTerm] = useState("");
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [cart, setCart] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Auth
-  const { userId, userRole, tenantName } = useAuth();
+  const { userId, userRole, tenantName, delegatedModules } = useAuth();
   const isAdmin = userRole === "admin";
+  const canManageProducts =
+    isAdmin || delegatedModules.includes("PRODUCTOS");
+  const navigate = useNavigate();
+  const productsRef = useRef<any[]>([]);
+  const cartRef = useRef<any[]>([]);
+  const barcodeQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
   // Historial
   const [ventas, setVentas] = useState<any[]>([]);
@@ -717,6 +734,14 @@ export function Ventas() {
       fetchVentasHistory();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    productsRef.current = productos;
+  }, [productos]);
+
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
 
   /**
    * Carga y ensambla el catálogo de productos disponibles para el POS.
@@ -807,32 +832,59 @@ export function Ventas() {
 
   const addToCart = (product: any) => {
     if (!product) return;
-    const existing = cart.find((c) => c.productoId === product.id);
-    if (existing) {
-      if (existing.quantity >= product.availableQty) {
-        toast.warning("Stock máximo alcanzado en carrito.");
-        return;
-      }
-      setCart(
-        cart.map((c) =>
-          c.productoId === product.id
-            ? { ...c, quantity: c.quantity + 1 }
-            : c
-        )
-      );
-    } else {
-      if (product.availableQty <= 0) return;
-      setCart([
-        ...cart,
-        {
-          productoId: product.id,
-          name: `${product.name || product.nombre} ${product.presentacion ? `(${product.presentacion})` : ""}`,
-          price: Number(product.salePrice || product.precio_venta || 0),
-          quantity: 1,
-          inventarioIds: product.inventarioIds,
-        },
-      ]);
+    const result = agregarUnidadEscaneada(cartRef.current, {
+      ...product,
+      name: `${product.name || product.nombre} ${product.presentacion ? `(${product.presentacion})` : ""}`,
+      salePrice: Number(product.salePrice || product.precio_venta || 0),
+    });
+    if (result.result === "sin_stock") {
+      toast.warning("Stock máximo alcanzado en carrito.");
+      return;
     }
+    cartRef.current = result.cart;
+    setCart(result.cart);
+  };
+
+  const processBarcode = async (code: string) => {
+    const { data } = await api.get("/catalogo/productos/buscar-codigo/", {
+      params: { codigo: code },
+    });
+    const product = productsRef.current.find((item) => item.id === data.id);
+    if (!product) {
+      setUnknownBarcode(null);
+      toast.warning("El producto existe, pero no tiene unidades disponibles.");
+      return;
+    }
+    setUnknownBarcode(null);
+    addToCart(product);
+  };
+
+  const enqueueBarcode = (rawCode: string) => {
+    const code = normalizarEntradaCodigo(rawCode);
+    if (!code) {
+      toast.warning("Ingresa un código para buscar.");
+      return;
+    }
+    setBarcodeTerm("");
+    barcodeQueueRef.current = encolarLecturaCodigo(
+      barcodeQueueRef.current,
+      () => processBarcode(code),
+      (error) => {
+        const status = (error as any)?.response?.status;
+        if (status === 404) {
+          setUnknownBarcode(code);
+          toast.warning(`No se encontró el código ${code}.`);
+          return;
+        }
+        if (status === 409) setUnknownBarcode(null);
+        toast.error(mensajeErrorBusquedaCodigo(error));
+      },
+    );
+  };
+
+  const handleBarcodeSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    enqueueBarcode(barcodeTerm);
   };
 
   const decreaseQuantity = (productoId: number) => {
@@ -874,16 +926,12 @@ export function Ventas() {
     if (cart.length === 0) return;
     setIsSubmitting(true);
     try {
-      const detalles = [];
-      for (const item of cart) {
-        const idsToSell = item.inventarioIds.slice(0, item.quantity);
-        for (const invId of idsToSell) {
-          detalles.push({
-            inventarioId: invId,
-            precioVentaUnitario: item.price,
-          });
-        }
-      }
+      const detalles = construirDetallesVenta(cart).map(({ inventarioId }) => ({
+        inventarioId,
+        precioVentaUnitario: cart.find((item) =>
+          item.inventarioIds.includes(inventarioId),
+        )?.price,
+      }));
       const { data } = await api.post("/ventas/procesar/", {
         usuarioId: userId,
         fecha: new Date().toISOString(),
@@ -906,6 +954,7 @@ export function Ventas() {
       toast.success("Venta realizada con éxito");
       setLastSaleResult(saleWithPayment);
       setIsPaymentModalOpen(false);
+      cartRef.current = [];
       setCart([]);
       fetchInventoryForSale();
     } catch (error: any) {
@@ -1012,6 +1061,48 @@ export function Ventas() {
             {/* Catálogo (siempre visible) */}
             <div className="lg:col-span-2 space-y-4">
             <Card className="p-4 border-0 shadow-sm sticky top-0 z-10 flex flex-col gap-4 bg-card">
+              <form
+                onSubmit={handleBarcodeSubmit}
+                className="flex flex-col sm:flex-row gap-2"
+              >
+                <Input
+                  aria-label="Código de producto"
+                  placeholder="Escribir, pegar o escanear código..."
+                  value={barcodeTerm}
+                  onChange={(event) => setBarcodeTerm(event.target.value)}
+                  autoComplete="off"
+                  className="h-11"
+                />
+                <Button type="submit" className="h-11">
+                  Buscar código
+                </Button>
+                <CameraBarcodeScanner
+                  onDetected={enqueueBarcode}
+                  className="h-11"
+                />
+              </form>
+              {unknownBarcode && (
+                <div
+                  role="status"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  <span>No se encontró el código {unknownBarcode}.</span>
+                  {canManageProducts && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        navigate(
+                          `/productos?codigo=${encodeURIComponent(unknownBarcode)}`,
+                        )
+                      }
+                    >
+                      Crear producto
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
                 <Input

@@ -71,6 +71,7 @@ class CatalogoRLSRealRoleTests(
             IdProveedor=self.provider_a,
             Nombre="Producto propio A",
             Presentacion="unidad",
+            Codigo="RLS-SHARED-001",
         )
         self.product_b = Producto.objects.create(
             Miscelanea=self.tenant_b,
@@ -78,6 +79,7 @@ class CatalogoRLSRealRoleTests(
             IdProveedor=self.provider_b,
             Nombre="Producto propio B",
             Presentacion="unidad",
+            Codigo="RLS-SHARED-001",
         )
         self._create_purchase(
             self.tenant_a,
@@ -292,6 +294,37 @@ class CatalogoRLSRealRoleTests(
             self.assertEqual(own.status_code, 200, own.data)
             self.assertEqual(foreign.status_code, 404, foreign.data)
             self.assertEqual(self._context(), "")
+
+    def test_busqueda_por_codigo_respeta_rls_y_el_tenant_http(self):
+        self._enter_restricted_role()
+        client = self._client(self.seller_a)
+        response = client.get(
+            "/api/catalogo/productos/buscar-codigo/",
+            {"codigo": "RLS-SHARED-001"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.json()["id"], self.product_a.pk)
+        self.assertNotEqual(response.json()["id"], self.product_b.pk)
+        self.assertEqual(self._context(), "")
+
+    def test_busqueda_equivalente_respeta_tenant_con_rol_rls_real(self):
+        self.product_a.Codigo = "0012345678905"
+        self.product_a.save(update_fields=["Codigo"])
+        self.product_b.Codigo = "012345678905"
+        self.product_b.save(update_fields=["Codigo"])
+        self._enter_restricted_role()
+        client = self._client(self.seller_a)
+
+        response = client.get(
+            "/api/catalogo/productos/buscar-codigo/",
+            {"codigo": "012345678905"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.json()["id"], self.product_a.pk)
+        self.assertNotEqual(response.json()["id"], self.product_b.pk)
+        self.assertEqual(self._context(), "")
 
     def test_admin_creates_and_updates_own_catalog_records(self):
         self._enter_restricted_role()

@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router";
 import api from "../api/axiosInstance";
+import { useAuth } from "../contexts/AuthContext";
 import { Card } from "../components/ui/card";
 import {
   construirDetallesPayload,
@@ -9,6 +11,12 @@ import {
   type DetalleEntradaApi,
   type ProductoPedido,
 } from "./Pedidos.helpers";
+import {
+  encolarLecturaCodigo,
+  mensajeErrorBusquedaCodigo,
+  normalizarEntradaCodigo,
+} from "./CodigosProducto.helpers";
+import { CameraBarcodeScanner } from "../components/CameraBarcodeScanner";
 
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -102,6 +110,10 @@ const mensajeApi = (error: unknown, fallback: string) => {
 ========================= */
 
 export function Pedidos() {
+  const { userRole, delegatedModules } = useAuth();
+  const canManageProducts =
+    userRole === "admin" || delegatedModules.includes("PRODUCTOS");
+  const navigate = useNavigate();
   const [proveedorSeleccionado, setProveedorSeleccionado] =
     useState<Proveedor | null>(null);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -115,6 +127,7 @@ export function Pedidos() {
   const viewPedidoTriggerRef = useRef<HTMLButtonElement | null>(null);
   const deletePedidoTriggerRef = useRef<HTMLButtonElement | null>(null);
   const proveedorDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const barcodeQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     if (successMessage) {
@@ -144,6 +157,8 @@ export function Pedidos() {
   const [selectedProveedor, setSelectedProveedor] = useState("");
   // FORM PRODUCTO (CORRECTO)
   const [productoId, setProductoId] = useState("");
+  const [barcodeTerm, setBarcodeTerm] = useState("");
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [cantidad, setCantidad] = useState("");
   const [costoCompra, setCostoCompra] = useState("");
 
@@ -192,6 +207,8 @@ export function Pedidos() {
     setTipoCompra("unidad");
     setEditingLineKey(null);
     setSelectedProveedor("");
+    setBarcodeTerm("");
+    setUnknownBarcode(null);
   };
 
   /* =========================
@@ -414,6 +431,55 @@ export function Pedidos() {
     setCostoCompra("");
     setContenidoPack("");
     setTipoCompra("unidad");
+    setBarcodeTerm("");
+    setUnknownBarcode(null);
+  };
+
+  const procesarCodigoCompra = async (rawCode: string) => {
+    if (!selectedProveedor) {
+      toast.warning("Primero elige el proveedor de la compra.");
+      return;
+    }
+    const code = normalizarEntradaCodigo(rawCode);
+    if (!code) {
+      toast.warning("Ingresa un código para buscar.");
+      return;
+    }
+    try {
+      const { data } = await api.get("/catalogo/productos/buscar-codigo/", {
+        params: { codigo: code },
+      });
+      if (Number(data.proveedorId) !== Number(selectedProveedor)) {
+        setUnknownBarcode(null);
+        toast.warning("El producto pertenece a otro proveedor.");
+        return;
+      }
+      setProductoId(String(data.id));
+      setUnknownBarcode(null);
+      setBarcodeTerm("");
+      toast.success("Producto seleccionado.");
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        setUnknownBarcode(code);
+        toast.warning(`No se encontró el código ${code}.`);
+        return;
+      }
+      if (error?.response?.status === 409) setUnknownBarcode(null);
+      toast.error(mensajeErrorBusquedaCodigo(error));
+    }
+  };
+
+  const buscarProductoPorCodigo = (event: React.FormEvent) => {
+    event.preventDefault();
+    encolarCodigoCompra(barcodeTerm);
+  };
+
+  const encolarCodigoCompra = (rawCode: string) => {
+    barcodeQueueRef.current = encolarLecturaCodigo(
+      barcodeQueueRef.current,
+      () => procesarCodigoCompra(rawCode),
+      () => toast.error("No se pudo procesar la lectura del código."),
+    );
   };
 
   const editarProductoPedido = (linea: ProductoPedido) => {
@@ -763,6 +829,64 @@ export function Pedidos() {
             {/* ========================= PRODUCTOS ========================= */}
             <div className="border border-border rounded-lg p-4 space-y-4">
               <h3 className="font-bold">Agregar productos</h3>
+
+              <form
+                onSubmit={buscarProductoPorCodigo}
+                className="flex flex-col sm:flex-row gap-2"
+              >
+                <Input
+                  aria-label="Código de producto para compra"
+                  placeholder="Escribir, pegar o escanear código..."
+                  value={barcodeTerm}
+                  onChange={(event) => setBarcodeTerm(event.target.value)}
+                  disabled={
+                    !selectedProveedor ||
+                    lineaSeleccionadaParaEdicion?.detalleId !== undefined
+                  }
+                  autoComplete="off"
+                  className="h-11"
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={
+                    !selectedProveedor ||
+                    lineaSeleccionadaParaEdicion?.detalleId !== undefined
+                  }
+                >
+                  Buscar código
+                </Button>
+                <CameraBarcodeScanner
+                  onDetected={encolarCodigoCompra}
+                  disabled={
+                    !selectedProveedor ||
+                    lineaSeleccionadaParaEdicion?.detalleId !== undefined
+                  }
+                  className="h-11"
+                />
+              </form>
+              {unknownBarcode && (
+                <div
+                  role="status"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  <span>No se encontró el código {unknownBarcode}.</span>
+                  {canManageProducts && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        navigate(
+                          `/productos?codigo=${encodeURIComponent(unknownBarcode)}`,
+                        )
+                      }
+                    >
+                      Crear producto
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* CALCULOS */}
               {(() => {

@@ -27,6 +27,10 @@ from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Avg
 from usuarios.tenant import TenantPrimaryKeyRelatedField
+from .codigos import (
+    limpiar_y_validar_codigo_producto,
+    variantes_equivalentes_codigo_producto,
+)
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -201,6 +205,14 @@ class ProductoSerializer(serializers.ModelSerializer):
     # NUEVO: Campos para proveedor y presentación (Proveedor obligatorio)
     proveedorId = TenantPrimaryKeyRelatedField(source='IdProveedor', queryset=Proveedor.objects.all(), required=True, allow_null=False)
     presentacion = serializers.CharField(source='Presentacion', required=False, allow_null=True, allow_blank=True)
+    code = serializers.CharField(
+        source='Codigo',
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        trim_whitespace=False,
+        validators=[],
+    )
     status = serializers.CharField(source='Estado', required=False)
     imagen = serializers.CharField(source='Imagen', required=False, allow_null=True, allow_blank=True)
     stock = serializers.SerializerMethodField()
@@ -208,7 +220,7 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Producto
-        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion', 'imagen']
+        fields = ['id', 'name', 'categoryId', 'status', 'stock', 'salePrice', 'proveedorId', 'presentacion', 'code', 'imagen']
 
     def validate_name(self, value):
         nombre_limpio = value.strip()
@@ -232,6 +244,29 @@ class ProductoSerializer(serializers.ModelSerializer):
             )
 
         return nombre_limpio
+
+    def validate_code(self, value):
+        codigo = limpiar_y_validar_codigo_producto(value)
+        if codigo is None:
+            return None
+
+        request = self.context.get('request')
+        miscelanea_id = getattr(self.instance, 'Miscelanea_id', None)
+        if miscelanea_id is None and request:
+            miscelanea_id = getattr(getattr(request, 'user', None), 'Miscelanea_id', None)
+
+        qs = Producto.objects.filter(
+            Miscelanea_id=miscelanea_id,
+            Codigo__in=variantes_equivalentes_codigo_producto(codigo),
+        )
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                'Ya existe un producto con este código o con su equivalente '
+                'UPC-A/EAN-13 en esta miscelánea.'
+            )
+        return codigo
 
     def get_stock(self, obj):
         """
