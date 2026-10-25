@@ -1,6 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import api from "../api/axiosInstance";
-import { Card, CardContent } from "../components/ui/card";
+import { Card } from "../components/ui/card";
+import {
+  construirDetallesPayload,
+  productoPedidoDesdeDetalle,
+  reemplazarLineaPedido,
+  unidadesDePack,
+  type DetalleEntradaApi,
+  type ProductoPedido,
+} from "./Pedidos.helpers";
 
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -19,12 +27,12 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
-import { useAuth } from "../contexts/AuthContext";
 
 import {
   Select,
@@ -45,7 +53,6 @@ import {
 
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -69,6 +76,27 @@ interface Proveedor {
   activo: boolean;
 }
 
+const mensajeApi = (error: unknown, fallback: string) => {
+  const data = (
+    error as { response?: { data?: unknown } }
+  )?.response?.data;
+  if (typeof data === "string") {
+    const text = data.trim();
+    return text && text.length <= 240 ? text : fallback;
+  }
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    for (const key of ["error", "detail"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) return value;
+      if (Array.isArray(value) && typeof value[0] === "string") {
+        return value[0];
+      }
+    }
+  }
+  return fallback;
+};
+
 /* =========================
    COMPONENTE
 ========================= */
@@ -84,6 +112,9 @@ export function Pedidos() {
   const [successMessage, setSuccessMessage] = useState(false);
   // MEJ-010: previene fuga de memoria al desmontar el componente
   const successTimerRef = useRef<number | null>(null);
+  const viewPedidoTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const deletePedidoTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const proveedorDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (successMessage) {
@@ -110,15 +141,16 @@ export function Pedidos() {
 
   const [isAddMode, setIsAddMode] = useState(false);
 
-  const { userId } = useAuth();
-
   const [selectedProveedor, setSelectedProveedor] = useState("");
   // FORM PRODUCTO (CORRECTO)
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [costoCompra, setCostoCompra] = useState("");
 
-  const [productosPedido, setProductosPedido] = useState<any[]>([]);
+  const [productosPedido, setProductosPedido] = useState<ProductoPedido[]>([]);
+  const [editingLineKey, setEditingLineKey] = useState<string | null>(null);
+  const [isSavingPedido, setIsSavingPedido] = useState(false);
+  const [isDeletingPedido, setIsDeletingPedido] = useState(false);
 
   // Estados para pedidos
   const [viewingPedido, setViewingPedido] = useState<any>(null);
@@ -137,6 +169,17 @@ export function Pedidos() {
 
   const [contenidoPack, setContenidoPack] = useState("");
   const isEditMode = Boolean(editingPedido);
+  const lineaSeleccionadaParaEdicion = editingLineKey
+    ? productosPedido.find((linea) => linea.clientKey === editingLineKey)
+    : undefined;
+
+  const cerrarAlertaEliminar = () => {
+    setDeletePedidoAlert({
+      isOpen: false,
+      pedidoId: null,
+      puedeEliminar: false,
+    });
+  };
 
   const resetModal = () => {
     setMostrarPedidoView(false);
@@ -146,6 +189,8 @@ export function Pedidos() {
     setCantidad("");
     setCostoCompra("");
     setContenidoPack("");
+    setTipoCompra("unidad");
+    setEditingLineKey(null);
     setSelectedProveedor("");
   };
 
@@ -222,28 +267,32 @@ export function Pedidos() {
     setProveedorSeleccionado(null);
     setIsViewPedidoOpen(false);
     setEditingPedido(pedido);
+    setEditingLineKey(null);
+    setProductoId("");
+    setCantidad("");
+    setCostoCompra("");
+    setContenidoPack("");
+    setTipoCompra("unidad");
 
     // proveedor
     setSelectedProveedor(pedido.proveedorId?.toString());
 
     // convertir detalles a formato del formulario
-    const mapped = pedido.detalles.map((d: any) => {
-      const match = d.tipoCompra?.match(/\((\d+)\)/);
+    const mapped = pedido.detalles.map((d: DetalleEntradaApi) => {
+      const linea = productoPedidoDesdeDetalle(d);
+      const pack = unidadesDePack(linea.tipoCompra);
 
-      const unidadesPorPack = match ? Number(match[1]) : 1;
+      if (linea.tipoCompra.toLowerCase().startsWith("pack") && !pack) {
+        toast.warning(
+          `El detalle #${linea.detalleId} usa "${linea.tipoCompra}" sin un tamaño de pack válido. Se conservará sin convertir.`,
+        );
+      } else if (pack && linea.cantidad % pack !== 0) {
+        toast.warning(
+          `El detalle #${linea.detalleId} tiene ${linea.cantidad} unidades, no divisibles entre ${pack}. Se conservarán sus valores originales.`,
+        );
+      }
 
-      const cantidadMostrada =
-        d.tipoCompra === "unidad" ? d.cantidad : d.cantidad / unidadesPorPack;
-
-      return {
-        id: d.id,
-        productoId: d.productoId?.toString(),
-        nombre: d.productoNombre,
-        tipoCompra: d.tipoCompra,
-        cantidad: cantidadMostrada,
-        precioUnitario: Number(d.precioCompraUnitario),
-        totalPagado: d.cantidad * Number(d.precioCompraUnitario),
-      };
+      return linea;
     });
 
     setProductosPedido(mapped);
@@ -269,7 +318,7 @@ export function Pedidos() {
         puedeEliminar,
       });
     } catch (error) {
-      console.error(error);
+      toast.error(mensajeApi(error, "No se pudo comprobar el pedido."));
     }
   };
 
@@ -277,22 +326,32 @@ export function Pedidos() {
     const entradaId = deletePedidoAlert.pedidoId;
 
     if (!entradaId || isNaN(Number(entradaId))) {
-      console.error("ID inválido:", deletePedidoAlert);
+      toast.error("No se pudo identificar el pedido que se va a eliminar.");
       return;
     }
 
+    if (isDeletingPedido) return;
+    setIsDeletingPedido(true);
     try {
       await api.delete(`/inventario/entradas/${entradaId}/delete_completo/`);
-
-      fetchEntradas();
-
-      setDeletePedidoAlert({
-        isOpen: false,
-        pedidoId: null,
-        puedeEliminar: false,
-      });
+      cerrarAlertaEliminar();
+      toast.success("Pedido eliminado");
+      try {
+        await Promise.all([fetchEntradas(), fetchInventario()]);
+      } catch {
+        toast.warning(
+          "El pedido fue eliminado, pero no se pudo actualizar la pantalla. Recarga antes de volver a intentar.",
+        );
+      }
     } catch (error) {
-      console.error(error);
+      toast.error(
+        mensajeApi(
+          error,
+          "No se pudo eliminar el pedido. Puede tener stock utilizado o historial.",
+        ),
+      );
+    } finally {
+      setIsDeletingPedido(false);
     }
   };
 
@@ -348,40 +407,90 @@ export function Pedidos() {
     }
   };
 
+  const limpiarEditorLinea = () => {
+    setEditingLineKey(null);
+    setProductoId("");
+    setCantidad("");
+    setCostoCompra("");
+    setContenidoPack("");
+    setTipoCompra("unidad");
+  };
+
+  const editarProductoPedido = (linea: ProductoPedido) => {
+    const pack = unidadesDePack(linea.tipoCompra);
+    if (linea.tipoCompra !== "unidad" && !pack) {
+      toast.error(
+        `No se puede convertir "${linea.tipoCompra}" de forma segura. El detalle se conservará intacto.`,
+      );
+      return;
+    }
+
+    setEditingLineKey(linea.clientKey);
+    setProductoId(linea.productoId.toString());
+    setTipoCompra(pack ? "pack" : "unidad");
+    setContenidoPack(pack ? pack.toString() : "");
+    setCantidad(linea.cantidadMostrada.toString());
+    setCostoCompra(
+      (pack ? linea.precioUnitario * pack : linea.precioUnitario).toFixed(2),
+    );
+  };
+
   const agregarProducto = () => {
     if (!productoId || !cantidad || !costoCompra) return;
 
     const producto = productos.find((p) => p.id.toString() === productoId);
 
-    if (!producto) return;
+    if (!producto && !lineaSeleccionadaParaEdicion) return;
+
+    if (
+      lineaSeleccionadaParaEdicion?.detalleId !== undefined &&
+      Number(productoId) !== lineaSeleccionadaParaEdicion.productoId
+    ) {
+      toast.error(
+        "No se puede cambiar el producto de un detalle existente. Retira la línea y agrega una nueva.",
+      );
+      return;
+    }
 
     // unidades por pack
     const unidadesPorPack =
       tipoCompra === "pack" ? Number(contenidoPack || 1) : 1;
 
+    const cantidadMostrada = Number(cantidad);
+    const costoMostrado = Number(costoCompra);
+    if (
+      !Number.isInteger(cantidadMostrada) ||
+      cantidadMostrada <= 0 ||
+      !Number.isInteger(unidadesPorPack) ||
+      unidadesPorPack <= 0 ||
+      !Number.isFinite(costoMostrado) ||
+      costoMostrado < 0
+    ) {
+      toast.error("Usa cantidades enteras positivas y un costo no negativo.");
+      return;
+    }
+
     // cantidad real para inventario
-    const cantidadReal = Number(cantidad) * unidadesPorPack;
+    const cantidadReal = cantidadMostrada * unidadesPorPack;
 
     // precio unitario real
-    const precioUnitario =
+    const precioUnitarioSinRedondear =
       tipoCompra === "pack"
-        ? Number(costoCompra) / unidadesPorPack
-        : Number(costoCompra);
+        ? costoMostrado / unidadesPorPack
+        : costoMostrado;
+    const precioUnitario = Number(precioUnitarioSinRedondear.toFixed(2));
 
     // total calculado automáticamente
-    const totalPagado = Number(cantidad) * Number(costoCompra);
+    const totalPagado = cantidadReal * precioUnitario;
 
     const tipoCompraTexto =
       tipoCompra === "pack" ? `pack(${contenidoPack})` : "unidad";
 
-    const nuevo = {
-      id: Date.now(),
-
-      productoId,
-
-      nombre: producto.name,
-
-      presentacion: producto.presentacion,
+    const valoresLinea: Omit<ProductoPedido, "detalleId" | "clientKey"> = {
+      productoId: Number(productoId),
+      nombre: producto?.name ?? lineaSeleccionadaParaEdicion!.nombre,
+      presentacion:
+        producto?.presentacion ?? lineaSeleccionadaParaEdicion?.presentacion,
 
       tipoCompra: tipoCompraTexto,
 
@@ -391,23 +500,35 @@ export function Pedidos() {
       // cantidad escrita por el usuario
       cantidadMostrada: Number(cantidad),
 
+      unidadesPorPack,
+
       totalPagado,
 
       precioUnitario,
     };
 
-    setProductosPedido([...productosPedido, nuevo]);
+    if (editingLineKey) {
+      setProductosPedido((lineas) =>
+        reemplazarLineaPedido(lineas, editingLineKey, valoresLinea),
+      );
+    } else {
+      setProductosPedido((lineas) => [
+        ...lineas,
+        {
+          ...valoresLinea,
+          clientKey: `new-${Date.now()}-${lineas.length}`,
+        },
+      ]);
+    }
 
-    // limpiar
-    setProductoId("");
-    setCantidad("");
-    setCostoCompra("");
-    setContenidoPack("");
-    setTipoCompra("unidad");
+    limpiarEditorLinea();
   };
 
   // ELIMINAR PRODUCTO (NUEVO)
   const eliminarProductoPedido = (index: number) => {
+    if (productosPedido[index]?.clientKey === editingLineKey) {
+      limpiarEditorLinea();
+    }
     const updated = productosPedido.filter((_, i) => i !== index);
     setProductosPedido(updated);
   };
@@ -421,63 +542,43 @@ export function Pedidos() {
       return;
     }
 
+    if (isSavingPedido) return;
+    setIsSavingPedido(true);
+    const detalles = construirDetallesPayload(productosPedido);
+    const payload = {
+      proveedorId: Number(selectedProveedor),
+      detalles,
+    };
+
     try {
-      const total = calcTotal();
-
-      let entradaId = editingPedido?.id;
-
-      // =========================
-      // 1. CREAR O ACTUALIZAR CABECERA
-      // =========================
       if (isEditMode) {
-        // 1. borrar todo
-        await api.delete(`/inventario/entradas/${entradaId}/delete_completo/`);
-
-        // 2. recrear entrada
-        const { data } = await api.post("/inventario/entradas/", {
-          proveedorId: Number(selectedProveedor),
-          usuarioId: userId,
-          fechaEntrada: new Date().toISOString(),
-          total: Number(total.toFixed(2)),
-        });
-        fetchEntradas();
-        entradaId = data.id;
+        await api.put(
+          `/inventario/entradas/${editingPedido.id}/editar-completa/`,
+          payload,
+        );
       } else {
-        const { data } = await api.post("/inventario/entradas/", {
-          proveedorId: Number(selectedProveedor),
-          usuarioId: userId,
-          fechaEntrada: new Date().toISOString(),
-          total,
-        });
-        fetchEntradas();
-        entradaId = data.id;
+        await api.post("/inventario/entradas/crear-completa/", payload);
       }
 
-      // detalles siempre igual
-      await Promise.all(
-        productosPedido.map((p) =>
-          api.post("/inventario/detalles-entrada/", {
-            entradaInventarioId: entradaId,
-            productoId: Number(p.productoId),
-            tipoCompra: p.tipoCompra,
-            cantidad: Number(p.cantidad),
-            precioCompraUnitario: Number(p.precioUnitario.toFixed(2)),
-          }),
+      toast.success(isEditMode ? "Pedido actualizado" : "Pedido creado");
+      try {
+        await Promise.all([fetchEntradas(), fetchInventario()]);
+      } catch {
+        toast.warning(
+          "La compra se guardó, pero no se pudo actualizar la pantalla. Recarga antes de volver a intentar.",
+        );
+      }
+      resetModal();
+      setIsAddMode(false);
+    } catch (error) {
+      toast.error(
+        mensajeApi(
+          error,
+          "No se pudo guardar la compra. Revisa cantidades, costos y posibles movimientos de stock.",
         ),
       );
-      // =========================
-      // 3. CLEAN UI
-      // =========================
-      toast.success(isEditMode ? "Pedido actualizado" : "Pedido creado");
-
-      setProductosPedido([]);
-      setSelectedProveedor("");
-      setEditingPedido(null);
-      setMostrarPedidoView(false);
-      setIsAddMode(false);
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al guardar");
+    } finally {
+      setIsSavingPedido(false);
     }
   };
 
@@ -550,7 +651,12 @@ export function Pedidos() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleViewPedidoClick(e)}
+                            aria-label={`Ver pedido ${e.id}`}
+                            onClick={(event) => {
+                              viewPedidoTriggerRef.current =
+                                event.currentTarget;
+                              handleViewPedidoClick(e);
+                            }}
                           >
                             <Eye className="size-4" />
                           </Button>
@@ -558,6 +664,7 @@ export function Pedidos() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label={`Editar pedido ${e.id}`}
                             onClick={() => handleEditPedidoClick(e)}
                           >
                             <Pencil className="size-4" />
@@ -566,7 +673,12 @@ export function Pedidos() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeletePedidoClick(e)}
+                            aria-label={`Eliminar pedido ${e.id}`}
+                            onClick={(event) => {
+                              deletePedidoTriggerRef.current =
+                                event.currentTarget;
+                              void handleDeletePedidoClick(e);
+                            }}
                           >
                             <Trash2 className="size-4 text-red-500" />
                           </Button>
@@ -587,6 +699,7 @@ export function Pedidos() {
               variant="ghost"
               size="icon"
               className="rounded-2xl"
+              disabled={isSavingPedido}
               onClick={() => {
                 if (isEditMode) {
                   setIsViewPedidoOpen(false);
@@ -675,7 +788,10 @@ export function Pedidos() {
                       <Select
                         value={productoId}
                         onValueChange={setProductoId}
-                        disabled={!selectedProveedor}
+                        disabled={
+                          !selectedProveedor ||
+                          lineaSeleccionadaParaEdicion?.detalleId !== undefined
+                        }
                       >
                         <SelectTrigger className="h-11 w-full">
                           <SelectValue
@@ -751,10 +867,30 @@ export function Pedidos() {
                       />
                     </div>
 
-                    <Button onClick={agregarProducto}>
-                      <Plus className="size-4 mr-2" />
-                      Agregar a la compra
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={agregarProducto}
+                        disabled={isSavingPedido}
+                      >
+                        {editingLineKey ? (
+                          <Pencil className="size-4 mr-2" />
+                        ) : (
+                          <Plus className="size-4 mr-2" />
+                        )}
+                        {editingLineKey
+                          ? "Actualizar línea"
+                          : "Agregar a la compra"}
+                      </Button>
+                      {editingLineKey && (
+                        <Button
+                          variant="outline"
+                          onClick={limpiarEditorLinea}
+                          disabled={isSavingPedido}
+                        >
+                          Cancelar edición
+                        </Button>
+                      )}
+                    </div>
                   </>
                 );
               })()}
@@ -767,7 +903,7 @@ export function Pedidos() {
 
                 {productosPedido.map((p, i) => (
                   <div
-                    key={p.id}
+                    key={p.clientKey}
                     className="flex justify-between items-center bg-muted p-3 rounded"
                   >
                     <div>
@@ -790,12 +926,24 @@ export function Pedidos() {
                       </p>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      onClick={() => eliminarProductoPedido(i)}
-                    >
-                      <Trash2 className="size-4 text-red-500" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        onClick={() => editarProductoPedido(p)}
+                        disabled={isSavingPedido}
+                        aria-label={`Editar detalle ${p.nombre}`}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => eliminarProductoPedido(i)}
+                        disabled={isSavingPedido}
+                        aria-label={`Retirar detalle ${p.nombre}`}
+                      >
+                        <Trash2 className="size-4 text-red-500" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -806,14 +954,22 @@ export function Pedidos() {
               <p className="font-bold">Total: C${calcTotal().toFixed(2)}</p>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={resetModal}>
+                <Button
+                  variant="outline"
+                  onClick={resetModal}
+                  disabled={isSavingPedido}
+                >
                   Cancelar
                 </Button>
 
-                <Button onClick={handleSubmit}>
+                <Button onClick={handleSubmit} disabled={isSavingPedido}>
                   <Check className="size-4 mr-2" />
 
-                  {isEditMode ? "Actualizar compra" : "Guardar compra"}
+                  {isSavingPedido
+                    ? "Guardando..."
+                    : isEditMode
+                      ? "Actualizar compra"
+                      : "Guardar compra"}
                 </Button>
               </div>
             </div>
@@ -839,7 +995,10 @@ export function Pedidos() {
 
             <div className="flex gap-3">
               <Button
-                onClick={() => setModalProveedor(true)}
+                onClick={(event) => {
+                  proveedorDialogTriggerRef.current = event.currentTarget;
+                  setModalProveedor(true);
+                }}
                 className="
                 bg-gradient-to-r
                 from-blue-600
@@ -958,9 +1117,22 @@ export function Pedidos() {
 
       {/* MODAL VIEW PEDIDO */}
       <Dialog open={isViewPedidoOpen} onOpenChange={setIsViewPedidoOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="max-w-2xl"
+          onCloseAutoFocus={(event) => {
+            const trigger = viewPedidoTriggerRef.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Detalle del Pedido</DialogTitle>
+            <DialogDescription>
+              Información de la fecha, el proveedor, los productos y los
+              importes de la compra.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -1026,8 +1198,24 @@ export function Pedidos() {
       </Dialog>
 
       {/* MODAL ALERTA ELIMINAR PEDIDO */}
-      <AlertDialog open={deletePedidoAlert.isOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={deletePedidoAlert.isOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingPedido) cerrarAlertaEliminar();
+        }}
+      >
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (isDeletingPedido) event.preventDefault();
+          }}
+          onCloseAutoFocus={(event) => {
+            const trigger = deletePedidoTriggerRef.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus();
+            }
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deletePedidoAlert.puedeEliminar
@@ -1045,33 +1233,20 @@ export function Pedidos() {
           <AlertDialogFooter>
             {deletePedidoAlert.puedeEliminar ? (
               <>
-                <AlertDialogAction
-                  onClick={() =>
-                    setDeletePedidoAlert({
-                      isOpen: false,
-                      pedidoId: null,
-                      puedeEliminar: false,
-                    })
-                  }
-                >
+                <AlertDialogCancel disabled={isDeletingPedido}>
                   Cancelar
-                </AlertDialogAction>
-                <AlertDialogAction onClick={handleConfirmDeletePedido}>
-                  Sí, eliminar
-                </AlertDialogAction>
+                </AlertDialogCancel>
+                <Button
+                  onClick={handleConfirmDeletePedido}
+                  disabled={isDeletingPedido}
+                >
+                  {isDeletingPedido ? "Eliminando..." : "Sí, eliminar"}
+                </Button>
               </>
             ) : (
-              <AlertDialogAction
-                onClick={() =>
-                  setDeletePedidoAlert({
-                    isOpen: false,
-                    pedidoId: null,
-                    puedeEliminar: false,
-                  })
-                }
-              >
+              <AlertDialogCancel>
                 Entendido
-              </AlertDialogAction>
+              </AlertDialogCancel>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1080,9 +1255,20 @@ export function Pedidos() {
           MODAL PROVEEDOR
       ========================= */}
       <Dialog open={modalProveedor} onOpenChange={setModalProveedor}>
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            const trigger = proveedorDialogTriggerRef.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Agregar Proveedor</DialogTitle>
+            <DialogDescription>
+              Ingresa el nombre y el número de contacto del nuevo proveedor.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

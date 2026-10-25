@@ -34,7 +34,7 @@ from rest_framework.response import Response
 
 from .models import DelegacionAdmin, Usuario
 from .serializers import UsuarioSerializer
-from .permissions import CanManageUserProfile, IsAdminRole, has_module_access
+from .permissions import CanManageUserProfile, HasTenant, IsAdminRole, has_module_access
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 from .tenant import TenantScopedViewSet
 
@@ -44,7 +44,7 @@ class CajerosActivosView(APIView):
     Retorna la lista de cajeros/vendedores activos del tenant del admin autenticado.
     Endpoint simplificado para el selector de delegación de permisos en Ajustes.
     """
-    permission_classes = [IsAdminRole]
+    permission_classes = [HasTenant, IsAdminRole]
 
     def get(self, request):
         empleados = Usuario.objects.filter(
@@ -177,7 +177,7 @@ class MiscelaneaBrandingView(APIView):
 
 
 class CrearCodigoAdminView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [HasTenant, IsAdminRole]
 
     def post(self, request):
         empleado_id = request.data.get('empleadoId')
@@ -247,7 +247,7 @@ class CrearCodigoAdminView(APIView):
 
 
 class ActivarCodigoAdminView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasTenant, IsAuthenticated]
 
     def post(self, request):
         codigo = str(request.data.get('codigo', '')).strip().upper()
@@ -294,7 +294,7 @@ class ActivarCodigoAdminView(APIView):
 
 
 class RevocarCodigoAdminView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [HasTenant, IsAdminRole]
 
     def post(self, request, delegacion_id):
         try:
@@ -327,7 +327,7 @@ class RevocarCodigoAdminView(APIView):
 
 
 class DelegacionesAdminView(APIView):
-    permission_classes = [IsAdminRole]
+    permission_classes = [HasTenant, IsAdminRole]
 
     def get(self, request):
         delegaciones = DelegacionAdmin.objects.filter(
@@ -364,15 +364,21 @@ class UsuarioViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet)
     permission_classes = [CanManageUserProfile]
     MODULO_AUDITORIA = 'USUARIOS'
 
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        if self.action == 'create':
+            return [HasTenant(), *permissions]
+        return permissions
+
     def perform_update(self, serializer):
         if not has_module_access(self.request.user, 'USUARIOS'):
             for field in ('Rol', 'Estado', 'Miscelanea', 'is_staff', 'is_superuser'):
                 serializer.validated_data.pop(field, None)
-        serializer.save()
+        super().perform_update(serializer)
 
 
 @api_view(['PATCH'])
-@permission_classes([IsAdminRole])
+@permission_classes([HasTenant, IsAdminRole])
 def cambiar_email_directo(request, user_id):
     """
     Endpoint de emergencia para cambio directo de email por un administrador.

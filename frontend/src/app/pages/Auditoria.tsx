@@ -13,7 +13,7 @@
  *   - "Sesiones" se actualiza al montar la pestaña.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback } from "react";
 import api from "../api/axiosInstance";
 import {
   ShieldCheck, Database, Users, RefreshCw, Filter, Download,
@@ -403,8 +403,8 @@ function TabLogs() {
                   </tr>
                 )}
                 {datos.results.map((log) => (
-                  <>
-                    <tr key={log.IdLog} className="hover:bg-muted/20 transition-colors">
+                  <Fragment key={log.IdLog}>
+                    <tr className="hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{log.IdLog}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
@@ -449,7 +449,7 @@ function TabLogs() {
                     </tr>
                     {/* Fila expandible con diff de datos */}
                     {expandido === log.IdLog && (log.datos_anteriores || log.datos_nuevos) && (
-                      <tr key={`exp-${log.IdLog}`} className="bg-muted/10">
+                      <tr className="bg-muted/10">
                         <td colSpan={9} className="px-4 py-3">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {log.datos_anteriores && (
@@ -476,7 +476,7 @@ function TabLogs() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

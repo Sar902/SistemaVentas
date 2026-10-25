@@ -20,8 +20,38 @@ JERARQUÍA DE PERMISOS:
 """
 
 from rest_framework import permissions
+from django.conf import settings
 from django.utils import timezone
 from .models import DelegacionAdmin
+
+
+def is_technical_admin(user):
+    """Use exactly the identity conditions enforced by Django Admin."""
+    return bool(
+        user
+        and user.is_active
+        and user.is_staff
+        and user.Email.lower() == settings.DJANGO_ADMIN_EMAIL
+    )
+
+
+class IsTechnicalAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return is_technical_admin(request.user)
+
+
+class HasTenant(permissions.BasePermission):
+    """Exige tenant para APIs administrativas del negocio, no para rutas técnicas."""
+
+    message = 'La cuenta no tiene una miscelánea asignada.'
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        return bool(
+            user
+            and user.is_authenticated
+            and getattr(user, 'Miscelanea_id', None) is not None
+        )
 
 
 def _delegacion_activa(user):

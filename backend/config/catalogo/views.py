@@ -37,8 +37,11 @@ AUDITORÍA:
     y registra el log en la tabla LogAuditoria. Los GETs no se registran.
 """
 
-from rest_framework import viewsets
+from django.db import transaction
+from django.db.models import RestrictedError
+from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from usuarios.permissions import IsAdminOrReadOnly
 from auditoria.mixins import AuditoriaMixin
 from usuarios.tenant import TenantScopedViewSet
@@ -46,7 +49,39 @@ from .models import Categoria, Proveedor, Producto
 from .serializers import CategoriaSerializer, ProveedorSerializer, ProductoSerializer
 
 
-class CategoriaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class CatalogoWriteSafetyMixin:
+    """Aplica las guardias de escritura comunes al catálogo."""
+
+    def create(self, request, *args, **kwargs):
+        if request.user.Miscelanea_id is None:
+            return Response(
+                {'detail': 'La cuenta no tiene una miscelánea asignada.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().destroy(request, *args, **kwargs)
+        except RestrictedError:
+            return Response(
+                {
+                    'detail': (
+                        'No se puede eliminar porque el registro tiene '
+                        'datos relacionados.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+
+class CategoriaViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Categoria.
 
@@ -63,7 +98,12 @@ class CategoriaViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSe
     MODULO_AUDITORIA = 'CATEGORIAS'
 
 
-class ProveedorViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class ProveedorViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Proveedor.
 
@@ -78,7 +118,12 @@ class ProveedorViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSe
     MODULO_AUDITORIA = 'PROVEEDORES'
 
 
-class ProductoViewSet(AuditoriaMixin, TenantScopedViewSet, viewsets.ModelViewSet):
+class ProductoViewSet(
+    CatalogoWriteSafetyMixin,
+    AuditoriaMixin,
+    TenantScopedViewSet,
+    viewsets.ModelViewSet,
+):
     """
     CRUD completo para el modelo Producto.
 

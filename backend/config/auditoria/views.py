@@ -28,7 +28,7 @@ from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
 
-from usuarios.permissions import IsAdminRole
+from usuarios.permissions import IsAdminRole, IsTechnicalAdmin
 from .models import LogAuditoria
 from .serializers import LogAuditoriaSerializer
 
@@ -71,7 +71,12 @@ class LogAuditoriaListView(APIView):
         Los filtros se aplican acumulativamente (AND lógico).
         Todos son opcionales — sin filtros, devuelve todos los logs del sistema.
         """
-        queryset = LogAuditoria.objects.filter(Miscelanea_id=request.user.Miscelanea_id)
+        if request.user.Miscelanea_id is None:
+            queryset = LogAuditoria.objects.none()
+        else:
+            queryset = LogAuditoria.objects.filter(
+                Miscelanea_id=request.user.Miscelanea_id
+            )
 
         # ── Filtros opcionales ─────────────────────────────────────────────
         modulo = request.query_params.get('modulo')
@@ -120,7 +125,7 @@ class EstadoBDView(APIView):
         - conexiones_activas: Número de conexiones actuales a la BD.
         - conexiones_detalle: Lista detallada de las conexiones activas.
     """
-    permission_classes = [IsAuthenticated, IsAdminRole]
+    permission_classes = [IsAuthenticated, IsTechnicalAdmin]
 
     def get(self, request):
         """
@@ -252,10 +257,14 @@ class SesionesActivasView(APIView):
         hace_24h = timezone.now() - timedelta(hours=24)
 
         # Todos los intentos de login en las últimas 24h
-        sesiones = LogAuditoria.objects.filter(
-            accion='LOGIN',
-            timestamp__gte=hace_24h
-        ).order_by('-timestamp')
+        if request.user.Miscelanea_id is None:
+            sesiones = LogAuditoria.objects.none()
+        else:
+            sesiones = LogAuditoria.objects.filter(
+                Miscelanea_id=request.user.Miscelanea_id,
+                accion='LOGIN',
+                timestamp__gte=hace_24h
+            ).order_by('-timestamp')
 
         # Estadísticas agregadas
         total_exitosas = sesiones.filter(resultado='EXITOSO').count()

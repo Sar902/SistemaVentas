@@ -167,3 +167,28 @@ class Producto(models.Model):
                 name='unique_producto_por_miscelanea'
             )
         ]
+
+    def calcular_precio_venta(self):
+        """Calcula el precio con el detalle de compra de mayor ID del tenant."""
+        from inventario.models import DetalleEntradaInventario
+
+        porcentaje_ganancia = Categoria.objects.filter(
+            pk=self.IdCategoria_id,
+            Miscelanea_id=self.Miscelanea_id,
+        ).values_list('PorcentajeGanancia', flat=True).first()
+        if porcentaje_ganancia is None:
+            return 0
+
+        ultimo_detalle = DetalleEntradaInventario.objects.filter(
+            IdProducto=self,
+            Miscelanea_id=self.Miscelanea_id,
+            IdEntradaInventario__Miscelanea_id=self.Miscelanea_id,
+            IdEntradaInventario__IdProveedor__Miscelanea_id=self.Miscelanea_id,
+        ).order_by('-IdDetalleEntrada').first()
+        base_price = (
+            float(ultimo_detalle.PrecioCompraUnitario)
+            if ultimo_detalle
+            else 0.0
+        )
+        profit = float(porcentaje_ganancia)
+        return int(round(base_price * (1 + (profit / 100))))

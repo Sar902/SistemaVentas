@@ -33,6 +33,67 @@ EXTRACCIÓN DE IP:
 """
 
 from auditoria.models import LogAuditoria
+from auditoria.serializers import sanitize_audit_payload
+
+
+# Campos de negocio que aportan trazabilidad en los modelos que actualmente
+# consumen AuditoriaMixin. Para un modelo no registrado se conserva únicamente
+# su clave primaria; nunca se recorren indiscriminadamente todos sus campos.
+AUDITABLE_MODEL_FIELDS = {
+    'catalogo.categoria': (
+        'IdCategoria', 'Miscelanea', 'Nombre', 'PorcentajeGanancia', 'Estado',
+    ),
+    'catalogo.proveedor': (
+        'IdProveedor', 'Miscelanea', 'Nombre', 'Contacto', 'Estado',
+    ),
+    'catalogo.producto': (
+        'IdProducto', 'Miscelanea', 'IdCategoria', 'IdProveedor', 'Nombre',
+        'Presentacion', 'Estado',
+    ),
+    'usuarios.usuario': (
+        'IdUsuario', 'Miscelanea', 'Nombre', 'Email', 'Estado', 'Rol',
+        'is_staff', 'is_superuser', 'intentos_fallidos',
+        'bloqueado_hasta',
+    ),
+    # Son viewsets de solo lectura, pero continúan siendo consumidores del mixin.
+    'inventario.entradainventario': (
+        'IdEntradaInventario', 'Miscelanea', 'IdProveedor', 'IdUsuario',
+        'FechaEntrada', 'Total',
+    ),
+    'ventas.venta': (
+        'IdVenta', 'Miscelanea', 'IdUsuario', 'Fecha', 'Total', 'Estado',
+    ),
+    'ventas.detalleventa': (
+        'IdDetalleVenta', 'Miscelanea', 'IdVenta', 'IdInventario',
+        'PrecioVentaUnitario',
+    ),
+}
+
+
+def _audit_value(value):
+    """Convierte un valor permitido a una representación apta para JSON."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, 'isoformat'):
+        return value.isoformat()
+    return str(value)
+
+
+def _instance_to_audit_dict(instance):
+    """Captura únicamente campos expresamente aprobados para el modelo."""
+    if instance is None:
+        return None
+
+    field_names = AUDITABLE_MODEL_FIELDS.get(
+        instance._meta.label_lower,
+        (instance._meta.pk.name,),
+    )
+    result = {}
+    for field_name in field_names:
+        field = instance._meta.get_field(field_name)
+        value = getattr(instance, field.attname)
+        result[field.name] = _audit_value(value)
+    return result
 
 
 def _get_client_ip(request):
@@ -67,36 +128,6 @@ def _get_user_agent(request):
         str: String del User-Agent, o cadena vacía si no está presente.
     """
     return request.META.get('HTTP_USER_AGENT', '')
-
-
-def _serializer_to_dict(serializer_data):
-    """
-    Convierte datos de un serializer a un dict serializable para JSON.
-
-    Convierte tipos no-JSON (Decimal, datetime, UUID) a sus representaciones
-    en string para que JSONField los acepte sin errores de serialización.
-
-    Args:
-        serializer_data: Diccionario de datos de un DRF serializer.
-
-    Returns:
-        dict: Datos listos para almacenar en JSONField.
-    """
-    if not serializer_data:
-        return None
-    result = {}
-    for key, value in serializer_data.items():
-        # Convertir tipos no-JSON-serializables a string
-        if hasattr(value, 'isoformat'):  # datetime, date
-            result[key] = value.isoformat()
-        else:
-            try:
-                import json
-                json.dumps(value)  # Test de serializabilidad
-                result[key] = value
-            except (TypeError, ValueError):
-                result[key] = str(value)
-    return result
 
 
 class AuditoriaMixin:
@@ -140,7 +171,7 @@ class AuditoriaMixin:
         instance = serializer.save(**save_kwargs)
 
         # Capturar datos del objeto recién creado para el log
-        datos_nuevos = _serializer_to_dict(dict(serializer.data))
+        datos_nuevos = _instance_to_audit_dict(instance)
 
         self._crear_log(
             request=self.request,
@@ -162,20 +193,12 @@ class AuditoriaMixin:
         """
         # Capturar estado ANTERIOR antes de que se sobreescriba
         instance = serializer.instance
-        datos_anteriores = {}
-        if instance:
-            # Serializar el estado actual del objeto a un dict legible
-            for field in instance._meta.fields:
-                val = getattr(instance, field.name, None)
-                if hasattr(val, 'isoformat'):
-                    datos_anteriores[field.name] = val.isoformat()
-                else:
-                    datos_anteriores[field.name] = str(val) if val is not None else None
+        datos_anteriores = _instance_to_audit_dict(instance)
 
         # Ejecutar la actualización estándar de DRF
         serializer.save()
 
-        datos_nuevos = _serializer_to_dict(dict(serializer.data))
+        datos_nuevos = _instance_to_audit_dict(instance)
 
         self._crear_log(
             request=self.request,
@@ -196,13 +219,7 @@ class AuditoriaMixin:
             instance: Instancia del modelo a eliminar.
         """
         # Serializar el estado del objeto ANTES de eliminarlo
-        datos_anteriores = {}
-        for field in instance._meta.fields:
-            val = getattr(instance, field.name, None)
-            if hasattr(val, 'isoformat'):
-                datos_anteriores[field.name] = val.isoformat()
-            else:
-                datos_anteriores[field.name] = str(val) if val is not None else None
+        datos_anteriores = _instance_to_audit_dict(instance)
 
         descripcion = f'Se eliminó un registro de {self.MODULO_AUDITORIA}: {instance}'
 
@@ -287,8 +304,8 @@ class AuditoriaMixin:
                 descripcion=descripcion,
                 ip_address=_get_client_ip(request),
                 user_agent=_get_user_agent(request),
-                datos_anteriores=datos_anteriores,
-                datos_nuevos=datos_nuevos,
+                datos_anteriores=sanitize_audit_payload(datos_anteriores),
+                datos_nuevos=sanitize_audit_payload(datos_nuevos),
                 resultado=resultado,
             )
         except Exception as e:
@@ -299,8 +316,13 @@ class AuditoriaMixin:
             logger.error(f'Error al registrar log de auditoría: {e}')
 
 
+_IDENTIDAD_NO_PROVISTA = object()
+
+
 def registrar_evento_manual(request, accion, modulo, descripcion,
-                             resultado='EXITOSO', datos_anteriores=None, datos_nuevos=None):
+                             resultado='EXITOSO', datos_anteriores=None, datos_nuevos=None,
+                             usuario_override=_IDENTIDAD_NO_PROVISTA,
+                             miscelanea_override=_IDENTIDAD_NO_PROVISTA):
     """
     Función standalone para registrar eventos desde vistas que no heredan AuditoriaMixin.
 
@@ -318,19 +340,24 @@ def registrar_evento_manual(request, accion, modulo, descripcion,
     """
     try:
         usuario = request.user if hasattr(request, 'user') and request.user.is_authenticated else None
+        if usuario_override is not _IDENTIDAD_NO_PROVISTA:
+            usuario = usuario_override
+        miscelanea_id = getattr(usuario, 'Miscelanea_id', None)
+        if miscelanea_override is not _IDENTIDAD_NO_PROVISTA:
+            miscelanea_id = getattr(miscelanea_override, 'pk', miscelanea_override)
         nombre_usuario = getattr(usuario, 'Nombre', '') if usuario else 'Anónimo'
 
         LogAuditoria.objects.create(
             usuario=usuario,
-            Miscelanea_id=getattr(usuario, 'Miscelanea_id', None),
+            Miscelanea_id=miscelanea_id,
             nombre_usuario=nombre_usuario,
             accion=accion,
             modulo=modulo,
             descripcion=descripcion,
             ip_address=_get_client_ip(request),
             user_agent=_get_user_agent(request),
-            datos_anteriores=datos_anteriores,
-            datos_nuevos=datos_nuevos,
+            datos_anteriores=sanitize_audit_payload(datos_anteriores),
+            datos_nuevos=sanitize_audit_payload(datos_nuevos),
             resultado=resultado,
         )
     except Exception as e:
