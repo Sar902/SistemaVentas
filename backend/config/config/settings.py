@@ -313,4 +313,4 @@ SIMPLE_JWT = {
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIGURACIÓN DE GEMINI AI (Escaneo de Compras / Facturas)
 # ══════════════════════════════════════════════════════════════════════════════
-GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
