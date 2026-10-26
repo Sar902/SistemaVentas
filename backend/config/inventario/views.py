@@ -1,4 +1,8 @@
 import logging
+import base64
+import google.genai as genai
+
+
 from decimal import Decimal
 
 from usuarios.tenant import TenantScopedViewSet
@@ -52,8 +56,86 @@ from .serializers import (
 from auditoria.mixins import AuditoriaMixin, registrar_evento_manual
 
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
+from google.genai import types
+
 logger = logging.getLogger(__name__)
 
+class EscanearReciboAIView(APIView):
+    """
+    Recibe la imagen del recibo/factura desde el frontend, la procesa con 
+    Google Gemini 1.5 Flash y devuelve los datos estructurados en formato JSON 
+    para auto-llenar el formulario de compras.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # 1. Validar que venga la imagen en la petición
+        imagen_file = request.FILES.get('imagen')
+        if not imagen_file:
+            return Response(
+                {"error": "No se ha proporcionado ninguna imagen."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # 2. Leer los bytes de la imagen y prepararlos para la IA
+            image_bytes = imagen_file.read()
+            mime_type = imagen_file.content_type or 'image/jpeg'
+
+            # 3. Inicializar el cliente de la nueva librería google-genai
+            # (Toma la API key directamente desde settings.py)
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+            prompt = """
+            Analiza esta imagen de una factura, recibo o nota de compra comercial.
+            Extrae la información y devuélvela EXACTAMENTE en formato JSON plano con esta estructura:
+            {
+              "proveedor_sugerido": "Nombre del proveedor",
+              "fecha": "YYYY-MM-DD o null",
+              "detalles": [
+                {
+                  "nombre_producto": "Nombre del producto",
+                  "cantidad": 1,
+                  "precio_compra_unitario": 0.00
+                }
+              ]
+            }
+            """
+
+            # Usamos gemini-3.8-flash asegurando el formato correcto de entrada
+            response = client.models.generate_content(
+                model='gemini-3.8-flash',
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+                ]
+            )
+
+            # 6. Limpiar y parsear la respuesta JSON que entrega la IA
+            import json
+            texto_respuesta = response.text.strip()
+            
+            # Limpieza por si el modelo incluye bloques ```json ... ```
+            if texto_respuesta.startswith("```json"):
+                texto_respuesta = texto_respuesta[7:]
+            if texto_respuesta.endswith("```"):
+                texto_respuesta = texto_respuesta[:-3]
+            texto_respuesta = texto_respuesta.strip()
+
+            datos_extraidos = json.loads(texto_respuesta)
+
+            return Response(datos_extraidos, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Error al procesar la imagen con la IA: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class EdicionCompraInvalida(Exception):
     """Error de negocio controlado que debe revertir una edición completa."""

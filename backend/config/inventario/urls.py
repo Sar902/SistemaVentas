@@ -12,18 +12,19 @@ SEPARACIÓN DE RESPONSABILIDADES:
     requieren @transaction.atomic y múltiples cambios de estado coordinados.
 
 ENDPOINTS CRUD (DefaultRouter):
-    /api/inventario/entradas/               → EntradaInventarioViewSet
-    /api/inventario/detalles-entrada/       → DetalleEntradaInventarioViewSet
-    /api/inventario/inventarios/            → InventarioViewSet
-    /api/inventario/perdidas/               → PerdidaViewSet
-    /api/inventario/detalles-perdida/       → DetallePerdidaViewSet
-    /api/inventario/solicitudes-devolucion/ → SolicitudDevolucionViewSet
-    /api/inventario/detalles-solicitud/     → DetalleSolicitudDevolucionViewSet
+    /api/inventario/entradas/                 → EntradaInventarioViewSet
+    /api/inventario/detalles-entrada/         → DetalleEntradaInventarioViewSet
+    /api/inventario/inventarios/              → InventarioViewSet
+    /api/inventario/perdidas/                 → PerdidaViewSet
+    /api/inventario/detalles-perdida/         → DetallePerdidaViewSet
+    /api/inventario/solicitudes-devolucion/   → SolicitudDevolucionViewSet
+    /api/inventario/detalles-solicitud/       → DetalleSolicitudDevolucionViewSet
 
 ENDPOINTS TRANSACCIONALES (APIView):
-    POST /api/inventario/procesar-perdida/              → ProcesarPerdidaView
-    POST /api/inventario/procesar-devolucion/           → ProcesarDevolucionView
-    POST /api/inventario/devolver-stock/                → DevolverStockView
+    POST /api/inventario/procesar-perdida/                  → ProcesarPerdidaView
+    POST /api/inventario/procesar-devolucion/               → ProcesarDevolucionView
+    POST /api/inventario/devolver-stock/                    → DevolverStockView
+    POST /api/inventario/escanear-recibo/                   → EscanearReciboAIView
 
 ENDPOINTS DE REPORTES SQL (APIView):
     GET /api/inventario/reporte-compras-filtradas/          → sp_compras_filtradas()
@@ -50,6 +51,7 @@ from .views import (
     DevolverStockView,
     ReporteComprasFiltradasView,
     ReporteProductosSinMovimientoView,
+    EscanearReciboAIView,
 )
 
 router = DefaultRouter()
@@ -67,6 +69,7 @@ urlpatterns = [
     path('procesar-perdida/', ProcesarPerdidaView.as_view(), name='procesar-perdida'),
     path('procesar-devolucion/', ProcesarDevolucionView.as_view(), name='procesar-devolucion'),
     path('devolver-stock/', DevolverStockView.as_view(), name='devolver-stock'),
+    path('escanear-recibo/', EscanearReciboAIView.as_view(), name='escanear-recibo'),
 
     # ── Reportes de inventario (delegan a funciones PostgreSQL sp_) ─────────
     path('reporte-compras-filtradas/', ReporteComprasFiltradasView.as_view(), name='reporte-compras-filtradas'),

@@ -310,3 +310,7 @@ SIMPLE_JWT = {
     # Será decodificado en el frontend (AuthContext.tsx) como decoded.user_id
     'USER_ID_CLAIM': 'user_id',
 }
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE GEMINI AI (Escaneo de Compras / Facturas)
+# ══════════════════════════════════════════════════════════════════════════════
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
