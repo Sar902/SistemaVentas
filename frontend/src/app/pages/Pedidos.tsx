@@ -85,9 +85,7 @@ interface Proveedor {
 }
 
 const mensajeApi = (error: unknown, fallback: string) => {
-  const data = (
-    error as { response?: { data?: unknown } }
-  )?.response?.data;
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
   if (typeof data === "string") {
     const text = data.trim();
     return text && text.length <= 240 ? text : fallback;
@@ -541,9 +539,7 @@ export function Pedidos() {
 
     // precio unitario real
     const precioUnitarioSinRedondear =
-      tipoCompra === "pack"
-        ? costoMostrado / unidadesPorPack
-        : costoMostrado;
+      tipoCompra === "pack" ? costoMostrado / unidadesPorPack : costoMostrado;
     const precioUnitario = Number(precioUnitarioSinRedondear.toFixed(2));
 
     // total calculado automáticamente
@@ -628,7 +624,11 @@ export function Pedidos() {
 
       toast.success(isEditMode ? "Pedido actualizado" : "Pedido creado");
       try {
-        await Promise.all([fetchEntradas(), fetchInventario()]);
+        await Promise.all([
+          fetchEntradas(),
+          fetchInventario(),
+          fetchProveedores(),
+        ]);
       } catch {
         toast.warning(
           "La compra se guardó, pero no se pudo actualizar la pantalla. Recarga antes de volver a intentar.",
@@ -1113,7 +1113,7 @@ export function Pedidos() {
               </h1>
 
               <p className="text-muted-foreground">
-                Gestión de proveedores y actividad reciente
+                Gestión de proveedores y actividad
               </p>
             </div>
 
@@ -1134,7 +1134,7 @@ export function Pedidos() {
               "
               >
                 <Plus className="size-4 mr-2" />
-                Agregar Proveedor
+                Proveedor
               </Button>
 
               <Button
@@ -1154,7 +1154,7 @@ export function Pedidos() {
   "
               >
                 <Plus className="size-4 mr-2" />
-                Nueva Compra
+                Compra
               </Button>
             </div>
           </div>
@@ -1210,7 +1210,7 @@ export function Pedidos() {
 
                   <span
                     className={`size-3 rounded-full ${
-                      p.activo ? "bg-green-500" : "bg-gray-300"
+                      p.pedidos_recientes > 0 ? "bg-green-500" : "bg-gray-300"
                     }`}
                   />
                 </div>
@@ -1368,9 +1368,7 @@ export function Pedidos() {
                 </Button>
               </>
             ) : (
-              <AlertDialogCancel>
-                Entendido
-              </AlertDialogCancel>
+              <AlertDialogCancel>Entendido</AlertDialogCancel>
             )}
           </AlertDialogFooter>
         </AlertDialogContent>
